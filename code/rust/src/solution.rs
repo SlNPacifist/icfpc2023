@@ -1,18 +1,15 @@
-use crate::io::{Task, Output, Coord};
+use crate::io::{Task, Solution, Coord, musician_radius};
 
-pub fn dummy(task: &Task) -> Output {
-    let mut res = Output::default();
-    let (stage_left,stage_bottom) = task.stage_bottom_left;
-    let stage_right = stage_left + task.stage_width;
-    let min_radius = 10.0;
-    let mut x = stage_left + min_radius;
-    let mut y = stage_bottom + min_radius;
+pub fn dummy(task: &Task) -> Solution {
+    let mut res = Solution::default();
+    let mut x = task.stage_left() + musician_radius;
+    let mut y = task.stage_bottom() + musician_radius;
     for _m in &task.musicians {
         res.placements.push(Coord {x, y});
-        x += 2.0 * min_radius;
-        if stage_right - x < min_radius {
-            x = stage_left + min_radius;
-            y += 2.0 * min_radius;
+        x += 2.0 * musician_radius;
+        if !task.musician_in_stage(x, y) {
+            x = task.stage_left() + musician_radius;
+            y += 2.0 * musician_radius;
         }
     }
     res
