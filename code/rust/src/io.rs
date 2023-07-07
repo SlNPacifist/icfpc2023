@@ -1,7 +1,10 @@
+use crate::geom::Point;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
 pub const MUSICIAN_RADIUS: f64 = 10.0;
+pub const MUSICIAN_BLOCK_RADIUS: f64 = 5.0;
+pub const SCORE_CONST: f64 = 1000000.0;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Task {
@@ -27,6 +30,13 @@ impl Attendee {
             x: self.y,
             y: self.x,
             tastes: self.tastes,
+        }
+    }
+
+    pub fn coord(&self) -> Point {
+        Point {
+            x: self.x,
+            y: self.y,
         }
     }
 }
@@ -70,32 +80,13 @@ impl Task {
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Solution {
-    pub placements: Vec<Coord>,
+    pub placements: Vec<Point>,
 }
 
 impl Solution {
     pub fn transpose(self) -> Self {
         Self {
             placements: self.placements.into_iter().map(|c| c.transpose()).collect(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Default)]
-pub struct Coord {
-    pub x: f64,
-    pub y: f64,
-}
-
-impl Coord {
-    pub fn dist_sqr(&self, other: &Coord) -> f64 {
-        (self.x - other.x) * (self.x - other.x) + (self.y - other.y) * (self.y - other.y)
-    }
-
-    pub fn transpose(self) -> Self {
-        Self {
-            x: self.y,
-            y: self.x,
         }
     }
 }

@@ -1,5 +1,6 @@
 use crate::io::MUSICIAN_RADIUS;
 
+mod geom;
 mod io;
 mod score;
 mod solution;

@@ -1,4 +1,5 @@
-use crate::io::{Solution, Task, MUSICIAN_RADIUS};
+use crate::geom::Segment;
+use crate::io::{Solution, Task, MUSICIAN_BLOCK_RADIUS, MUSICIAN_RADIUS, SCORE_CONST};
 use anyhow::{bail, Result};
 
 pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
@@ -19,11 +20,11 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
         .filter(|(index, _)| {
             i != *index
         })
-        .min_by(|(_, a), (_, b)| {
+        .min_by(|(_, &a), (_, &b)| {
             c.dist_sqr(a).partial_cmp(&c.dist_sqr(b)).unwrap()
         }).unwrap();
 
-        if min_dist_coord.dist_sqr(c) < musician_radius_sqr {
+        if min_dist_coord.dist_sqr(*c) < musician_radius_sqr {
             bail!("Musician {i} is too close to musician {pos}")
         }
 
@@ -32,5 +33,35 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
 }
 
 pub fn calc(task: &Task, solution: &Solution) -> Result<f64> {
-    validate(task, solution).and_then(|_| Result::Ok(0.0))
+    validate(task, solution).map(|_| {
+        task.attendees
+            .iter()
+            .map(|a| {
+                solution
+                    .placements
+                    .iter()
+                    .enumerate()
+                    .map(|(index, coord)| {
+                        let segment = Segment {
+                            from: a.coord(),
+                            to: *coord,
+                        };
+                        if solution
+                            .placements
+                            .iter()
+                            .enumerate()
+                            .filter(|(i, _)| *i != index)
+                            .any(|(_, c)| segment.dist(*c) <= MUSICIAN_BLOCK_RADIUS)
+                        {
+                            return 0.0;
+                        }
+
+                        let instrument = task.musicians[index];
+                        let weight = a.tastes[instrument];
+                        (weight * SCORE_CONST / coord.dist_sqr(a.coord())).ceil()
+                    })
+                    .sum::<f64>()
+            })
+            .sum()
+    })
 }
