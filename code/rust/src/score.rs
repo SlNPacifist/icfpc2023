@@ -1,5 +1,5 @@
-use crate::geom::Segment;
-use crate::io::{Solution, Task, MUSICIAN_BLOCK_RADIUS, MUSICIAN_RADIUS, SCORE_CONST};
+use crate::geom::{Point, Segment};
+use crate::io::{Attendee, Solution, Task, MUSICIAN_BLOCK_RADIUS, MUSICIAN_RADIUS, SCORE_CONST};
 use anyhow::{bail, Result};
 use rayon::prelude::*;
 
@@ -38,8 +38,8 @@ pub struct Visibility {
 }
 
 impl Visibility {
-    pub fn is_visible(&self, attendee_index: usize, musician_index: usize) -> bool {
-        self.visibility[attendee_index][musician_index]
+    pub fn is_visible(&self, attendee_index: usize, pos_index: usize) -> bool {
+        self.visibility[attendee_index][pos_index]
     }
 
     pub fn for_attendee(&self, attendee_index: usize) -> impl Iterator<Item = usize> + '_ {
@@ -79,7 +79,12 @@ pub fn calc_visibility(task: &Task, solution: &Solution) -> Visibility {
     }
 }
 
-pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result<f64> {
+pub fn attendee_score(attendee: &Attendee, instrument: usize, musician_coord: Point) -> i64 {
+    let weight = attendee.tastes[instrument];
+    (weight * SCORE_CONST / musician_coord.dist_sqr(attendee.coord())).ceil() as i64
+}
+
+pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result<i64> {
     validate(task, solution).map(|_| {
         task.attendees
             .par_iter()
@@ -88,12 +93,9 @@ pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result
                 visibility
                     .for_attendee(attendee_index)
                     .map(|index| {
-                        let instrument = task.musicians[index];
-                        let weight = a.tastes[instrument];
-                        (weight * SCORE_CONST / solution.placements[index].dist_sqr(a.coord()))
-                            .ceil()
+                        attendee_score(a, task.musicians[index], solution.placements[index])
                     })
-                    .sum::<f64>()
+                    .sum::<i64>()
             })
             .sum()
     })

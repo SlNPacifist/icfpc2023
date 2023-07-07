@@ -41,8 +41,24 @@ fn main() {
         let visibility = score::calc_visibility(&task, &solution);
 
         match score::calc(&task, &solution, &visibility) {
-            Result::Ok(points) => println!("Solution for task {i} got {points} points"),
-            Result::Err(err) => println!("Solution for task {i} is incorrect: {err}"),
+            Result::Ok(points) => {
+                println!("Solution for task {i} got {points} points before optimization")
+            }
+            Result::Err(err) => {
+                println!("Solution for task {i} is incorrect before optimization: {err}")
+            }
+        }
+
+        let optimized_solution =
+            optimizer::optimize_placements_greedy(&task, &solution, &visibility);
+        let optimized_visibility = score::calc_visibility(&task, &optimized_solution);
+        match score::calc(&task, &optimized_solution, &optimized_visibility) {
+            Result::Ok(points) => {
+                println!("Solution for task {i} got {points} points after optimization")
+            }
+            Result::Err(err) => {
+                println!("Solution for task {i} is incorrect after optimization: {err}")
+            }
         }
 
         io::write(&format!("../../solutions/problem-{i}.json"), &solution);

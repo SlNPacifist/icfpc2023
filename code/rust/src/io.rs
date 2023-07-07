@@ -94,9 +94,21 @@ impl Task {
 
         self
     }
+
+    pub fn musician_by_instrument(&self) -> Vec<Vec<usize>> {
+        let mut res = vec![vec![]; self.instruments_len()];
+        for (index, instrument) in self.musicians.iter().enumerate() {
+            res[*instrument].push(index);
+        }
+        res
+    }
+
+    pub fn instruments_len(&self) -> usize {
+        self.attendees[0].tastes.len()
+    }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Solution {
     pub placements: Vec<Point>,
 }
