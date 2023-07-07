@@ -29,21 +29,8 @@ https://github.com/SlNPacifist/icfpc2023
 Все отправки здесь: https://www.icfpcontest.com/dashboard
 
 ```
-submit.sh problem-id solution-data
-```
-или
-```
 submit.sh problem-id path-to-solution-data
-```
-
-Решение должно быть валидным json. bash не очень хорошо дружит с кавычками, поэтому если хотим отправить что-то сложное, лучше положить в файл.
-
-```
-submit.sh 1 17
-submit.sh 2 abc # Не норм, abc - не валидный json
-submit.sh 2 "abc" # Не норм, bash съедает кавычки
-submit.sh 2 '"abc"'
-submin.sh 2 \"abc\"
+submit.sh 7 ./solutions/problem-7.json
 ```
 
 ## Folder structure
