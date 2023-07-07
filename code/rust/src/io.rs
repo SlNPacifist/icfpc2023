@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 
-pub const musician_radius: f64 = 10.0;
+pub const MUSICIAN_RADIUS: f64 = 10.0;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Task {
@@ -39,7 +39,7 @@ impl Task {
     }
 
     pub fn musician_in_stage(&self, x: f64, y: f64) -> bool {
-        x >= self.stage_left() + musician_radius && x <= self.stage_right() - musician_radius && y >= self.stage_bottom() + musician_radius && y <= self.stage_top() - musician_radius
+        x >= self.stage_left() + MUSICIAN_RADIUS && x <= self.stage_right() - MUSICIAN_RADIUS && y >= self.stage_bottom() + MUSICIAN_RADIUS && y <= self.stage_top() - MUSICIAN_RADIUS
     }
 }
 

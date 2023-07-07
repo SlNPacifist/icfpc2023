@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use crate::io::{Task, Solution, musician_radius};
+use crate::io::{Task, Solution, MUSICIAN_RADIUS};
 
 pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
     let solution_length = solution.placements.len();
@@ -8,7 +8,7 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
         bail!("Expected {task_length} musician positions, got {solution_length}");
     }
 
-    let musician_radius_sqr = musician_radius * musician_radius;
+    let musician_radius_sqr = MUSICIAN_RADIUS * MUSICIAN_RADIUS;
     
     solution.placements.iter().enumerate().map(|(i, c)| {
         if !task.musician_in_stage(c.x, c.y) {
