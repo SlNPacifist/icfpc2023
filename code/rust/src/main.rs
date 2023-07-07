@@ -1,4 +1,4 @@
-use crate::io::MUSICIAN_RADIUS;
+use crate::io::{Task, MUSICIAN_RADIUS};
 
 mod geom;
 mod io;
@@ -11,56 +11,32 @@ fn main() {
         let task = io::read(&format!("../../data/problem-{i}.json"));
 
         let solution = {
-            let task = task.clone();
-            // dummy solutions are row-based on width, and we have stages, narrow by height
-            let transpose = task.stage_height < task.stage_width;
-            let task = if transpose {
-                println!("Transposing task {i}");
-                task.transpose()
-            } else {
-                task
+            let task = task.clone().simplify();
+
+            let solver = |task: &Task| {
+                if task.stage_width < 3.0 * MUSICIAN_RADIUS {
+                    println!("Using narrow solver for task {i}");
+                    solution::dummy_narrow(task)
+                } else {
+                    solution::multi_dummy_solver(task)
+                }
             };
+            let solver = solution::transposer_solver(solver);
 
-            let task = task.simplify();
-
-            let solver = if task.stage_width < 3.0 * MUSICIAN_RADIUS {
-                println!("Using narrow solver for task {i}");
-                solution::dummy_narrow
-            } else {
-                solution::dummy_hex
-            };
-
-            let solution = solver(&task);
-            if transpose {
-                solution.transpose()
-            } else {
-                solution
-            }
+            solver(&task)
         };
 
         let visibility = score::calc_visibility(&task, &solution);
 
         match score::calc(&task, &solution, &visibility) {
             Result::Ok(points) => {
-                println!("Solution for task {i} got {points} points before optimization")
+                println!("Solution for task {i} got {points} points")
             }
             Result::Err(err) => {
-                println!("Solution for task {i} is incorrect before optimization: {err}")
+                println!("Solution for task {i} is incorrect: {err}")
             }
         }
 
-        let optimized_solution =
-            optimizer::optimize_placements_greedy(&task, &solution, &visibility);
-        let optimized_visibility = score::calc_visibility(&task, &optimized_solution);
-        match score::calc(&task, &optimized_solution, &optimized_visibility) {
-            Result::Ok(points) => {
-                println!("Solution for task {i} got {points} points after optimization")
-            }
-            Result::Err(err) => {
-                println!("Solution for task {i} is incorrect after optimization: {err}")
-            }
-        }
-
-        io::write(&format!("../../solutions/problem-{i}.json"), &optimized_solution);
+        io::write(&format!("../../solutions/problem-{i}.json"), &solution);
     }
 }
