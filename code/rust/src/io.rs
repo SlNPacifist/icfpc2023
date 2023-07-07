@@ -3,7 +3,7 @@ use std::fs;
 
 pub const MUSICIAN_RADIUS: f64 = 10.0;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Task {
     pub room_width: f64,
     pub room_height: f64,
@@ -14,11 +14,21 @@ pub struct Task {
     pub attendees: Vec<Attendee>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Attendee {
     pub x: f64,
     pub y: f64,
     pub tastes: Vec<f64>,
+}
+
+impl Attendee {
+    pub fn transpose(self) -> Self {
+        Self {
+            x: self.y,
+            y: self.x,
+            tastes: self.tastes,
+        }
+    }
 }
 
 impl Task {
@@ -44,11 +54,31 @@ impl Task {
             && y >= self.stage_bottom() + MUSICIAN_RADIUS
             && y <= self.stage_top() - MUSICIAN_RADIUS
     }
+
+    pub fn transpose(self) -> Self {
+        Self {
+            room_width: self.room_height,
+            room_height: self.room_width,
+            stage_width: self.stage_height,
+            stage_height: self.room_width,
+            stage_bottom_left: (self.stage_bottom_left.1, self.stage_bottom_left.0),
+            musicians: self.musicians,
+            attendees: self.attendees.into_iter().map(|a| a.transpose()).collect(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Solution {
     pub placements: Vec<Coord>,
+}
+
+impl Solution {
+    pub fn transpose(self) -> Self {
+        Self {
+            placements: self.placements.into_iter().map(|c| c.transpose()).collect(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -60,6 +90,13 @@ pub struct Coord {
 impl Coord {
     pub fn dist_sqr(&self, other: &Coord) -> f64 {
         (self.x - other.x) * (self.x - other.x) + (self.y - other.y) * (self.y - other.y)
+    }
+
+    pub fn transpose(self) -> Self {
+        Self {
+            x: self.y,
+            y: self.x,
+        }
     }
 }
 
