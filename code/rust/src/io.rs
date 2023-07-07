@@ -9,9 +9,9 @@ pub struct Task {
     pub room_height: f64,
     pub stage_width: f64,
     pub stage_height: f64,
-    pub stage_bottom_left: ( f64, f64 ),
+    pub stage_bottom_left: (f64, f64),
     pub musicians: Vec<usize>,
-    pub attendees: Vec<Attendee>
+    pub attendees: Vec<Attendee>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -39,13 +39,16 @@ impl Task {
     }
 
     pub fn musician_in_stage(&self, x: f64, y: f64) -> bool {
-        x >= self.stage_left() + MUSICIAN_RADIUS && x <= self.stage_right() - MUSICIAN_RADIUS && y >= self.stage_bottom() + MUSICIAN_RADIUS && y <= self.stage_top() - MUSICIAN_RADIUS
+        x >= self.stage_left() + MUSICIAN_RADIUS
+            && x <= self.stage_right() - MUSICIAN_RADIUS
+            && y >= self.stage_bottom() + MUSICIAN_RADIUS
+            && y <= self.stage_top() - MUSICIAN_RADIUS
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Solution {
-    pub placements: Vec<Coord>
+    pub placements: Vec<Coord>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -66,5 +69,9 @@ pub fn read(path: &str) -> Task {
 }
 
 pub fn write(path: &str, data: &Solution) {
-    fs::write(path, serde_json::to_vec(data).expect("Could not serialize data")).expect("Got error when writing to file");
+    fs::write(
+        path,
+        serde_json::to_vec(data).expect("Could not serialize data"),
+    )
+    .expect("Got error when writing to file");
 }

@@ -1,6 +1,6 @@
 mod io;
-mod solution;
 mod score;
+mod solution;
 
 fn main() {
     for i in 1..45 {
@@ -10,7 +10,7 @@ fn main() {
             Result::Ok(points) => println!("Solution for task {i} got {points} points"),
             Result::Err(err) => println!("Solution for task {i} is incorrect: {err}"),
         }
-        
+
         io::write(&format!("../../solutions/problem-{i}.json"), &solution);
     }
 }

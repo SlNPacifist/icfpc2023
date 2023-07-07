@@ -1,5 +1,5 @@
+use crate::io::{Solution, Task, MUSICIAN_RADIUS};
 use anyhow::{bail, Result};
-use crate::io::{Task, Solution, MUSICIAN_RADIUS};
 
 pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
     let solution_length = solution.placements.len();
@@ -9,7 +9,7 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
     }
 
     let musician_radius_sqr = MUSICIAN_RADIUS * MUSICIAN_RADIUS;
-    
+
     solution.placements.iter().enumerate().map(|(i, c)| {
         if !task.musician_in_stage(c.x, c.y) {
             bail!("Musician is not in stage. x={}, y={}, stage borders are left={}, right={}, bottom={}, top={}", c.x, c.y, task.stage_left(), task.stage_right(), task.stage_bottom(), task.stage_top());
@@ -32,7 +32,5 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
 }
 
 pub fn calc(task: &Task, solution: &Solution) -> Result<f64> {
-    validate(task, solution).and_then(|_| {
-        Result::Ok(0.0)
-    })
+    validate(task, solution).and_then(|_| Result::Ok(0.0))
 }
