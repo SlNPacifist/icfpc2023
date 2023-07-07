@@ -56,8 +56,7 @@ pub fn calc_visibility(task: &Task, solution: &Solution) -> Visibility {
         visibility: task
             .attendees
             .par_iter()
-            .enumerate()
-            .map(|(attendee_index, a)| {
+            .map(|a| {
                 solution
                     .placements
                     .iter()
