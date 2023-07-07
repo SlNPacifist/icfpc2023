@@ -70,7 +70,7 @@ impl Task {
             room_width: self.room_height,
             room_height: self.room_width,
             stage_width: self.stage_height,
-            stage_height: self.room_width,
+            stage_height: self.stage_width,
             stage_bottom_left: (self.stage_bottom_left.1, self.stage_bottom_left.0),
             musicians: self.musicians,
             attendees: self.attendees.into_iter().map(|a| a.transpose()).collect(),
