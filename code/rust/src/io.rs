@@ -3,31 +3,31 @@ use std::fs;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Task {
-    room_width: f64,
-    room_height: f64,
-    stage_width: f64,
-    stage_height: f64,
-    stage_bottom_left: ( f64, f64 ),
-    musicians: Vec<usize>,
-    attendees: Vec<Attendee>
+    pub room_width: f64,
+    pub room_height: f64,
+    pub stage_width: f64,
+    pub stage_height: f64,
+    pub stage_bottom_left: ( f64, f64 ),
+    pub musicians: Vec<usize>,
+    pub attendees: Vec<Attendee>
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Attendee {
-    x: f64,
-    y: f64,
-    tastes: Vec<f64>,
+    pub x: f64,
+    pub y: f64,
+    pub tastes: Vec<f64>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Output {
-    placements: Vec<Coord>
+    pub placements: Vec<Coord>
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Coord {
-    x: f64,
-    y: f64,
+    pub x: f64,
+    pub y: f64,
 }
 
 pub fn read(path: &str) -> Task {

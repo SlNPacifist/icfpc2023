@@ -1,7 +1,9 @@
 mod io;
+mod solution;
 
 fn main() {
-    println!("Hello, world!");
-    // println!("{:?}", io::read("../../data/problem-1.json"));
-    io::write("../../solutions/problem-1.json", &io::Output::default());
+    for i in 1..45 {
+        let task = io::read(&format!("../../data/problem-{i}.json"));
+        io::write(&format!("../../solutions/problem-{i}.json"), &solution::dummy(&task));
+    }
 }
