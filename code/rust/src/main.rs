@@ -7,7 +7,7 @@ mod score;
 mod solution;
 
 fn main() {
-    for i in 1..=45 {
+    for i in 1..=55 {
         let task = io::read(&format!("../../data/problem-{i}.json"));
 
         let solution = {
