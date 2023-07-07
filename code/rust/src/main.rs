@@ -10,14 +10,17 @@ fn main() {
         let task = io::read(&format!("../../data/problem-{i}.json"));
 
         let solution = {
+            let task = task.clone();
             // dummy solutions are row-based on width, and we have stages, narrow by height
             let transpose = task.stage_height < task.stage_width;
             let task = if transpose {
                 println!("Transposing task {i}");
-                task.clone().transpose()
+                task.transpose()
             } else {
-                task.clone()
+                task
             };
+
+            let task = task.simplify();
 
             let solver = if task.stage_width < 3.0 * MUSICIAN_RADIUS {
                 println!("Using narrow solver for task {i}");

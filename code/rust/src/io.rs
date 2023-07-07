@@ -76,6 +76,24 @@ impl Task {
             attendees: self.attendees.into_iter().map(|a| a.transpose()).collect(),
         }
     }
+
+    pub fn simplify(self) -> Self {
+        let total_instruments = self.attendees[0].tastes.len();
+        for inst1 in 0..total_instruments {
+            for inst2 in (inst1 + 1)..total_instruments {
+                let same = self
+                    .attendees
+                    .iter()
+                    .all(|a| a.tastes[inst1] == a.tastes[inst2]);
+                if same {
+                    println!("Every attendee has same taste for instrument {inst1} and {inst2}");
+                    // TODO replace them with single instrument and single taste
+                }
+            }
+        }
+
+        self
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
