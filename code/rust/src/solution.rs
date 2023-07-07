@@ -27,11 +27,10 @@ pub fn dummy_hex(task: &Task) -> Solution {
             even = !even;
             if even {
                 x = task.stage_left() + 2.0 * MUSICIAN_RADIUS;
-                y += 2.0 * MUSICIAN_RADIUS * 60.0f64.to_radians().sin();
             } else {
                 x = task.stage_left() + MUSICIAN_RADIUS;
-                y += 2.0 * MUSICIAN_RADIUS;
             }
+            y += 2.0 * MUSICIAN_RADIUS * 60.0f64.to_radians().sin();
         }
     }
     res

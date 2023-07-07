@@ -18,7 +18,7 @@ fn main() {
 
             // TODO use narrow solution if width is less than 3r
 
-            let solution = solution::dummy(&task);
+            let solution = solution::dummy_hex(&task);
             if transpose {
                 solution.transpose()
             } else {
