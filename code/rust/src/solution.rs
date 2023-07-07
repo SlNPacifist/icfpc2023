@@ -50,7 +50,7 @@ pub fn dummy_narrow(task: &Task) -> Solution {
     let mut y = task.stage_bottom() + MUSICIAN_RADIUS;
     let mut even = false;
     for _m in &task.musicians {
-        res.placements.push(Coord { x, y });
+        res.placements.push(Point { x, y });
         even = !even;
         if even {
             x = task.stage_right() - MUSICIAN_RADIUS;
