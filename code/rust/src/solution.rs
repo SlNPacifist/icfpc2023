@@ -18,16 +18,18 @@ pub fn dummy(task: &Task) -> Solution {
     res
 }
 
-pub fn dummy_hex(task: &Task, radius_multiplier: f64) -> Solution {
+pub fn dummy_hex(task: &Task, radius_multiplier: f64, scale_to_stage: bool) -> Solution {
     let r = MUSICIAN_RADIUS;
     let r = r * radius_multiplier;
 
     let mut res = Solution::default();
     let mut x = task.stage_left() + r;
     let mut y = task.stage_bottom() + r;
+    let mut last_y = y;
     let mut even = false;
     for _m in &task.musicians {
         res.placements.push(Point { x, y });
+        last_y = y;
         x += 2.0 * r;
         if !task.musician_in_stage(x, y) {
             even = !even;
@@ -37,6 +39,13 @@ pub fn dummy_hex(task: &Task, radius_multiplier: f64) -> Solution {
                 x = task.stage_left() + r;
             }
             y += 2.0 * r * 60.0f64.to_radians().sin();
+        }
+    }
+    let max_y = last_y + r;
+    if scale_to_stage {
+        let scaling = (task.stage_top() - task.stage_bottom()) / (max_y - task.stage_bottom());
+        for p in &mut res.placements {
+            p.y = (p.y - task.stage_bottom()) * scaling + task.stage_bottom();
         }
     }
     res
@@ -82,8 +91,8 @@ pub fn transposer_solver(s: impl Fn(&Task) -> Solution) -> impl Fn(&Task) -> Sol
     }
 }
 
-fn dummy_opti_solver(task: &Task, spread: f64) -> anyhow::Result<Solution> {
-    let solution = dummy_hex(task, spread);
+fn dummy_opti_solver(task: &Task, spread: f64, scale_to_stage: bool) -> anyhow::Result<Solution> {
+    let solution = dummy_hex(task, spread, scale_to_stage);
 
     let visibility = score::calc_visibility(&task, &solution);
     score::calc(&task, &solution, &visibility)?;
@@ -100,9 +109,14 @@ pub fn multi_dummy_solver(task: &Task) -> Solution {
             &[1.5, 1.1, 1.05, 1.01, 1.005, 1.001, 1.0]
         };
 
+    let scale_stage = [false, true];
+
+    use itertools::Itertools;
+
     spreads
         .iter()
-        .map(|spread| dummy_opti_solver(task, *spread))
+        .cartesian_product(scale_stage.into_iter())
+        .map(|(spread, scale)| dummy_opti_solver(task, *spread, scale))
         .filter_map(|solution| solution.ok())
         .max_by_key(|solution| {
             let visibility = score::calc_visibility(&task, &solution);
