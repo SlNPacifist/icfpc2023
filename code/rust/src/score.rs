@@ -33,11 +33,31 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
     }).collect()
 }
 
-pub fn calc(task: &Task, solution: &Solution) -> Result<f64> {
-    validate(task, solution).map(|_| {
-        task.attendees
+pub struct Visibility {
+    visibility: Vec<Vec<bool>>,
+}
+
+impl Visibility {
+    pub fn is_visible(&self, attendee_index: usize, musician_index: usize) -> bool {
+        self.visibility[attendee_index][musician_index]
+    }
+
+    pub fn for_attendee(&self, attendee_index: usize) -> impl Iterator<Item = usize> + '_ {
+        self.visibility[attendee_index]
+            .iter()
+            .enumerate()
+            .filter(|(_, v)| **v)
+            .map(|(i, _)| i)
+    }
+}
+
+pub fn calc_visibility(task: &Task, solution: &Solution) -> Visibility {
+    Visibility {
+        visibility: task
+            .attendees
             .par_iter()
-            .map(|a| {
+            .enumerate()
+            .map(|(attendee_index, a)| {
                 solution
                     .placements
                     .iter()
@@ -47,19 +67,32 @@ pub fn calc(task: &Task, solution: &Solution) -> Result<f64> {
                             from: a.coord(),
                             to: *coord,
                         };
-                        if solution
+                        solution
                             .placements
                             .iter()
                             .enumerate()
                             .filter(|(i, _)| *i != index)
-                            .any(|(_, c)| segment.dist(*c) <= MUSICIAN_BLOCK_RADIUS)
-                        {
-                            return 0.0;
-                        }
+                            .all(|(_, c)| segment.dist(*c) > MUSICIAN_BLOCK_RADIUS)
+                    })
+                    .collect()
+            })
+            .collect(),
+    }
+}
 
+pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result<f64> {
+    validate(task, solution).map(|_| {
+        task.attendees
+            .par_iter()
+            .enumerate()
+            .map(|(attendee_index, a)| {
+                visibility
+                    .for_attendee(attendee_index)
+                    .map(|index| {
                         let instrument = task.musicians[index];
                         let weight = a.tastes[instrument];
-                        (weight * SCORE_CONST / coord.dist_sqr(a.coord())).ceil()
+                        (weight * SCORE_CONST / solution.placements[index].dist_sqr(a.coord()))
+                            .ceil()
                     })
                     .sum::<f64>()
             })

@@ -2,6 +2,7 @@ use crate::io::MUSICIAN_RADIUS;
 
 mod geom;
 mod io;
+mod optimizer;
 mod score;
 mod solution;
 
@@ -37,7 +38,9 @@ fn main() {
             }
         };
 
-        match score::calc(&task, &solution) {
+        let visibility = score::calc_visibility(&task, &solution);
+
+        match score::calc(&task, &solution, &visibility) {
             Result::Ok(points) => println!("Solution for task {i} got {points} points"),
             Result::Err(err) => println!("Solution for task {i} is incorrect: {err}"),
         }
