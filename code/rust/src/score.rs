@@ -1,6 +1,7 @@
 use crate::geom::Segment;
 use crate::io::{Solution, Task, MUSICIAN_BLOCK_RADIUS, MUSICIAN_RADIUS, SCORE_CONST};
 use anyhow::{bail, Result};
+use rayon::prelude::*;
 
 pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
     let solution_length = solution.placements.len();
@@ -35,7 +36,7 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
 pub fn calc(task: &Task, solution: &Solution) -> Result<f64> {
     validate(task, solution).map(|_| {
         task.attendees
-            .iter()
+            .par_iter()
             .map(|a| {
                 solution
                     .placements
