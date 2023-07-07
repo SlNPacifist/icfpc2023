@@ -61,6 +61,6 @@ fn main() {
             }
         }
 
-        io::write(&format!("../../solutions/problem-{i}.json"), &solution);
+        io::write(&format!("../../solutions/problem-{i}.json"), &optimized_solution);
     }
 }
