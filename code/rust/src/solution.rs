@@ -35,3 +35,28 @@ pub fn dummy_hex(task: &Task) -> Solution {
     }
     res
 }
+
+pub fn dummy_narrow(task: &Task) -> Solution {
+    let height_step = {
+        // Solving the right triangle with hypo 2r and height w-2r
+        let hypo = 2.0 * MUSICIAN_RADIUS;
+        let width = task.stage_width - 2.0 * MUSICIAN_RADIUS;
+        (hypo * hypo - width * width).sqrt()
+    };
+
+    let mut res = Solution::default();
+    let mut x = task.stage_left() + MUSICIAN_RADIUS;
+    let mut y = task.stage_bottom() + MUSICIAN_RADIUS;
+    let mut even = false;
+    for _m in &task.musicians {
+        res.placements.push(Coord { x, y });
+        even = !even;
+        if even {
+            x = task.stage_right() - MUSICIAN_RADIUS;
+        } else {
+            x = task.stage_left() + MUSICIAN_RADIUS;
+        }
+        y += height_step;
+    }
+    res
+}

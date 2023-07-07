@@ -1,3 +1,5 @@
+use crate::io::MUSICIAN_RADIUS;
+
 mod io;
 mod score;
 mod solution;
@@ -16,9 +18,14 @@ fn main() {
                 task.clone()
             };
 
-            // TODO use narrow solution if width is less than 3r
+            let solver = if task.stage_width < 3.0 * MUSICIAN_RADIUS {
+                println!("Using narrow solver for task {i}");
+                solution::dummy_narrow
+            } else {
+                solution::dummy_hex
+            };
 
-            let solution = solution::dummy_hex(&task);
+            let solution = solver(&task);
             if transpose {
                 solution.transpose()
             } else {
