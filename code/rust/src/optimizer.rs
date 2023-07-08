@@ -1,7 +1,6 @@
 use crate::geom::{Point, Vector};
 use crate::io::MUSICIAN_RADIUS;
 use crate::score::{self, calc, calc_visibility};
-use crate::solution;
 use crate::{
     io::{Solution, Task},
     score::{attendee_score, Visibility},
@@ -187,21 +186,6 @@ pub fn force_based_optimizer(
     let visibility = calc_visibility(&task, &result);
     (result, visibility)
 }
-
-// pub fn force_greedy_combined(task: &Task, initial_solution: &Solution) -> (Solution, Visibility) {
-//     const STEPS: usize = 10;
-//     let mut result = initial_solution.clone();
-//     let mut visibility = calc_visibility(task, &result);
-//     for _ in 0..STEPS {
-//         result = force_based_optimizer(&task, &result, &visibility);
-//         visibility = calc_visibility(&task, &result);
-//         result = optimize_placements_greedy(&task, &result, &visibility);
-//         visibility = calc_visibility(&task, &result);
-//         // dbg!(crate::score::calc(&task, &result, &visibility));
-//     }
-
-//     (result, visibility)
-// }
 
 pub fn optimize_do_talogo(
     task: &Task,

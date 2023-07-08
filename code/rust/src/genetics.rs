@@ -1,6 +1,6 @@
 use crate::geom::Point;
 use crate::io::{Solution, Task};
-use crate::score::{calc, calc_visibility};
+use crate::score::{calc, calc_visibility, Visibility};
 use genevo::{operator::prelude::*, population::*, prelude::*, types::fmt::Display};
 
 type Genome = Vec<f64>;
@@ -69,7 +69,7 @@ impl<'a> FitnessFunction<Genome, i64> for &'a Task {
     }
 }
 
-pub fn optimize_placements(task: &Task, solution: &Solution) -> Solution {
+pub fn optimize_placements(task: &Task, solution: &Solution) -> (Solution, Visibility) {
     let placement: Vec<f64> = genome_from_solution(task, solution);
     let len = (placement.len() * 2).max(50);
     let initial_population = Population::with_individuals(vec![placement; len]);
