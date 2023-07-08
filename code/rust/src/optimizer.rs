@@ -48,10 +48,12 @@ pub fn optimize_placements_greedy(
 }
 
 // TODO schedule
-const OPTIMIZING_FORCE_MULTIPLIER: f64 = 1e-6;
+const OPTIMIZING_FORCE_MULTIPLIER: f64 = 1e-7;
 const RELAXING_FORCE_MULTIPLIER: f64 = OPTIMIZING_FORCE_MULTIPLIER / 2.0;
-const RELAXING_FORCE_BASE: f64 = 1.0;
-const STEPS: usize = 1000;
+// const RELAXING_FORCE_MULTIPLIER: f64 = 0.0;
+const RELAXING_FORCE_BASE: f64 = 1e7;
+// const STEPS: usize = 1000;
+const STEPS: usize = 5;
 
 const MUSICIAN_RADIUS_SQR: f64 = MUSICIAN_RADIUS * MUSICIAN_RADIUS;
 
@@ -68,7 +70,7 @@ fn run_force_based_step(
         let force = force_collector(task, start_solution, visibility, pos_index, *old_position);
 
         let force = force * power_multiplier;
-        // println!("applying force: point #{pos_index} {old_position:?}, force {force:?}");
+        // println!("applying force: point #{pos_index} {old_position:?}, force mag {}", force.dot(force).sqrt());
 
         // TODO try multiple times with smaller steps in same directions
         let mut new_position = new_positions.placements[pos_index] + force;
@@ -97,9 +99,7 @@ fn run_force_based_step(
     new_positions
 }
 
-pub fn force_based_optimizer(task: &Task, initial_solution: &Solution) -> Solution {
-    let visibility = calc_visibility(task, initial_solution);
-
+pub fn force_based_optimizer(task: &Task, initial_solution: &Solution, visibility: &Visibility) -> Solution {
     let mut result = initial_solution.clone();
 
     let mut optimizing_force_sched_multiplier = OPTIMIZING_FORCE_MULTIPLIER;
@@ -166,9 +166,24 @@ pub fn force_based_optimizer(task: &Task, initial_solution: &Solution) -> Soluti
         }
 
         // TODO proper schedule
-        optimizing_force_sched_multiplier *= 0.99;
-        relaxing_force_sched_multiplier *= 0.99;
+        optimizing_force_sched_multiplier *= 0.999;
+        relaxing_force_sched_multiplier *= 0.999;
     }
 
     result
+}
+
+pub fn force_greedy_combined(task: &Task, initial_solution: &Solution) -> (Solution, Visibility) {
+    const STEPS: usize = 10;
+    let mut result = initial_solution.clone();
+    let mut visibility = calc_visibility(task, &result);
+    for _ in 0..STEPS {
+        result = force_based_optimizer(&task, &result, &visibility);
+        visibility = calc_visibility(&task, &result);
+        result = optimize_placements_greedy(&task, &result, &visibility);
+        visibility = calc_visibility(&task, &result);
+        // dbg!(crate::score::calc(&task, &result, &visibility));
+    }
+
+    (result, visibility)
 }

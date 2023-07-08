@@ -133,3 +133,8 @@ pub fn write(path: &str, data: &Solution) {
     )
     .expect("Got error when writing to file");
 }
+
+pub fn read_solution(path: &str) -> Solution {
+    let data = fs::read_to_string(path).expect(&format!("Unable to read file {path}"));
+    serde_json::from_str(&data).expect("Could not parse data")
+}
