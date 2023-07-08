@@ -57,6 +57,9 @@ impl Vector {
     pub fn dot(self, other: Self) -> f64 {
         self.x * other.x + self.y * other.y
     }
+    pub fn atan2(self) -> f64 {
+        f64::atan2(self.y, self.x)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

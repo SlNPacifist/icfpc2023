@@ -2,6 +2,7 @@ use crate::geom::{Point, Segment};
 use crate::io::{Attendee, Solution, Task, MUSICIAN_BLOCK_RADIUS, MUSICIAN_RADIUS, SCORE_CONST};
 use anyhow::{bail, Result};
 use rayon::prelude::*;
+use std::cmp::Ordering;
 
 pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
     let solution_length = solution.placements.len();
@@ -161,4 +162,78 @@ pub fn potential_score(task: &Task) -> i64 {
                 .sum::<i64>()
         })
         .sum::<i64>()
+}
+
+fn get_angle_comparator(p0: Point) -> impl FnMut(&Point, &Point) -> Ordering {
+    move |p1, p2| {
+        let v01 = *p1 - p0;
+        let v02 = *p2 - p0;
+        let a1 = v01.atan2();
+        let a2 = v02.atan2();
+        return a1.partial_cmp(&a2).unwrap();
+    }
+}
+
+pub fn calc_visibility_fast(task: &Task, solution: &Solution) -> Visibility {
+    let mut result = vec![vec![true; task.musicians.len()]; task.attendees.len()];
+
+    for (pos_index, pos) in solution.placements.iter().enumerate() {
+        let mut obstacles = Vec::new();
+        obstacles.extend_from_slice(&solution.placements[0..pos_index]);
+        obstacles.extend_from_slice(&solution.placements[pos_index + 1..]);
+
+        let mut obstacles = obstacles
+            .into_iter()
+            .map(|p| {
+                let v_from_pos = p - *pos;
+                (p, v_from_pos.atan2())
+            })
+            .collect::<Vec<_>>();
+        obstacles.sort_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap());
+        let obstacles = obstacles.into_iter().map(|(p, _)| p).collect::<Vec<_>>();
+
+        let mut attendees = task
+            .attendees
+            .iter()
+            .enumerate()
+            .map(|(i, a)| {
+                let v_from_pos = a.coord() - *pos;
+                (i, a, v_from_pos.atan2())
+            })
+            .collect::<Vec<_>>();
+        attendees.sort_by(|(_, _, a), (_, _, b)| a.partial_cmp(b).unwrap());
+        let attendees = attendees
+            .into_iter()
+            .map(|(i, a, _)| (i, a))
+            .collect::<Vec<_>>();
+
+        // keep that previous angle
+        // TODO -1?
+        // let mut m = -1;
+        let mut m = obstacles.len() - 1;
+        for (att_index, att) in attendees {
+            let att_pos = att.coord();
+            let aa = (att_pos - *pos).atan2();
+            let mut mn = m;
+            loop {
+                mn = mn + 1;
+                let obstacle = obstacles[mn % obstacles.len()];
+                let ma = (obstacle - *pos).atan2();
+                if mn == obstacles.len() || ma > aa {
+                    break;
+                }
+            }
+            m = mn - 1;
+            let segment = Segment {
+                from: *pos,
+                to: att_pos,
+            };
+            let next_obs = obstacles[mn % obstacles.len()];
+            let prev_obs = obstacles[(m + obstacles.len()) % obstacles.len()];
+            result[att_index][pos_index] = segment.dist(next_obs) >= MUSICIAN_BLOCK_RADIUS
+                && segment.dist(prev_obs) >= MUSICIAN_BLOCK_RADIUS;
+        }
+    }
+
+    Visibility { visibility: result }
 }
