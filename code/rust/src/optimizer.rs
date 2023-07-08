@@ -99,7 +99,11 @@ fn run_force_based_step(
     new_positions
 }
 
-pub fn force_based_optimizer(task: &Task, initial_solution: &Solution, visibility: &Visibility) -> Solution {
+pub fn force_based_optimizer(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+) -> Solution {
     let mut result = initial_solution.clone();
 
     let mut optimizing_force_sched_multiplier = OPTIMIZING_FORCE_MULTIPLIER;

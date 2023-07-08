@@ -1,31 +1,58 @@
-use genevo::{operator::prelude::*, population::*, prelude::*, types::fmt::Display};
-use crate::geom::{Point};
+use crate::geom::Point;
 use crate::io::{Solution, Task};
-use crate::score::{calc_visibility, calc};
+use crate::score::{calc, calc_visibility};
+use genevo::{operator::prelude::*, population::*, prelude::*, types::fmt::Display};
 
 type Genome = Vec<f64>;
 
-pub fn genome_from_solution(solution: &Solution) -> Genome {
-    solution.placements.iter().copied().flat_map(|Point {x, y}| [x, y]).collect()
+fn relative(left: f64, right: f64, x: f64) -> f64 {
+    (x - left) / (right - left)
 }
 
-pub fn genome_to_solution(genome: &Genome) -> Solution {
-    Solution {
-        placements: genome.chunks(2).map(|c| Point {x: c[0], y: c[1]}).collect()
+fn from_relative(left: f64, right: f64, x: f64) -> f64 {
+    (right - left) * x + left
+}
+
+fn stage_relative_pos(task: &Task, point: Point) -> [f64; 2] {
+    [
+        relative(task.stage_left(), task.stage_right(), point.x),
+        relative(task.stage_bottom(), task.stage_top(), point.y),
+    ]
+}
+
+fn to_stage_pos(task: &Task, rpos: &[f64]) -> Point {
+    Point {
+        x: from_relative(task.stage_left(), task.stage_right(), rpos[0]),
+        y: from_relative(task.stage_bottom(), task.stage_top(), rpos[1]),
     }
 }
 
-const MIN_SCORE: i64 = -1_000_000_000;
+fn genome_from_solution(task: &Task, solution: &Solution) -> Genome {
+    solution
+        .placements
+        .iter()
+        .copied()
+        .flat_map(|p| stage_relative_pos(task, p))
+        .collect()
+}
+
+fn genome_to_solution(task: &Task, genome: &Genome) -> Solution {
+    Solution {
+        placements: genome.chunks(2).map(|c| to_stage_pos(task, c)).collect(),
+    }
+}
+
+const MIN_SCORE: i64 = -1_000_000_000_000;
 
 /// The genotype is Solution
 impl<'a> FitnessFunction<Genome, i64> for &'a Task {
     fn fitness_of(&self, genome: &Genome) -> i64 {
-        let solution = genome_to_solution(genome);
+        let solution = genome_to_solution(self, genome);
         let visibility = calc_visibility(self, &solution);
 
         match calc(self, &solution, &visibility) {
             Ok(val) => val,
-            _ => MIN_SCORE, 
+            _ => MIN_SCORE,
         }
     }
 
@@ -43,16 +70,16 @@ impl<'a> FitnessFunction<Genome, i64> for &'a Task {
 }
 
 pub fn optimize_placements(task: &Task, solution: &Solution) -> Solution {
-    let placement: Vec<f64> = genome_from_solution(solution);
-    let initial_population = Population::with_individuals(vec![placement; 6]);
+    let placement: Vec<f64> = genome_from_solution(task, solution);
+    let len = (placement.len() * 2).max(50);
+    let initial_population = Population::with_individuals(vec![placement; len]);
 
     let mut task_sim = simulate(
         genetic_algorithm()
             .with_evaluation(task)
             .with_selection(MaximizeSelector::new(0.85, 12))
             .with_crossover(SinglePointCrossBreeder::new())
-            // TODO set min and max!
-            .with_mutation(RandomValueMutator::new(0.2, task.stage_left(), task.stage_right()))
+            .with_mutation(BreederValueMutator::new(0.1, 1.0, 3, 0.0, 1.0))
             .with_reinsertion(ElitistReinserter::new(task, false, 0.85))
             .with_initial_population(initial_population)
             .build(),
@@ -86,7 +113,7 @@ pub fn optimize_placements(task: &Task, solution: &Solution) -> Solution {
                 //     Task.value,
                 //     Task.weight
                 // );
-            },
+            }
             Ok(SimResult::Final(step, processing_time, duration, stop_reason)) => {
                 let best_solution = step.result.best_solution;
                 println!("{}", stop_reason);
@@ -109,12 +136,12 @@ pub fn optimize_placements(task: &Task, solution: &Solution) -> Solution {
                 //     Task.value,
                 //     Task.weight
                 // );
-                return genome_to_solution(&best_solution.solution.genome);
-            },
+                return genome_to_solution(task, &best_solution.solution.genome);
+            }
             Err(error) => {
                 println!("{}", error);
                 break 'sim;
-            },
+            }
         }
     }
 
