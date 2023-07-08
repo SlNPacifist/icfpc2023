@@ -4,6 +4,7 @@ use anyhow::{bail, Result};
 use rayon::prelude::*;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
+use std::sync::Mutex;
 use float_ord::FloatOrd;
 use itertools::Itertools;
 
@@ -184,9 +185,9 @@ fn get_angle_comparator(p0: Point) -> impl FnMut(&Point, &Point) -> Ordering {
 }
 
 pub fn calc_visibility_fast(task: &Task, solution: &Solution) -> Visibility {
-    let mut result = vec![vec![true; task.musicians.len()]; task.attendees.len()];
+    let mut result = Mutex::new(vec![vec![true; task.musicians.len()]; task.attendees.len()]);
 
-    for (pos_index, pos) in solution.placements.iter().enumerate() {
+    solution.placements.par_iter().enumerate().for_each(|(pos_index, pos)| {
         // TODO pillars require more complex logic
         let mut obstacles = solution.placements[0..pos_index].iter().map(|p| (*p, MUSICIAN_BLOCK_RADIUS)).chain(
             solution.placements[pos_index + 1..].iter().map(|p| (*p, MUSICIAN_BLOCK_RADIUS))
@@ -260,9 +261,12 @@ pub fn calc_visibility_fast(task: &Task, solution: &Solution) -> Visibility {
                 }
             }
             let has_close_obstacle = entered_distances.range(..=FloatOrd(att_dist)).next().is_some();
-            result[att_index][pos_index] = !has_close_obstacle;
+            {
+                let mut result = result.lock().unwrap();
+                result[att_index][pos_index] = !has_close_obstacle;
+            }
         }
-    }
+    });
 
-    Visibility { visibility: result }
+    Visibility { visibility: result.into_inner().unwrap() }
 }
