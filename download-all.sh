@@ -7,7 +7,7 @@ set -euo pipefail
 
 rm -rf ./data/*
 
-for i in $(seq 1 55);
+for i in $(seq 1 90);
 do
     curl -v "https://api.icfpcontest.com/problem?problem_id=${i}" | jq -r '.Success' > "data/problem-${i}.json"
 done
