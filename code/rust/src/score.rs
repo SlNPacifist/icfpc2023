@@ -67,12 +67,17 @@ pub fn calc_visibility(task: &Task, solution: &Solution) -> Visibility {
                             from: a.coord(),
                             to: *coord,
                         };
-                        solution
+                        let musicians_clear = solution
                             .placements
                             .iter()
                             .enumerate()
                             .filter(|(i, _)| *i != index)
-                            .all(|(_, c)| segment.dist(*c) >= MUSICIAN_BLOCK_RADIUS)
+                            .all(|(_, c)| segment.dist(*c) >= MUSICIAN_BLOCK_RADIUS);
+                        let pillars_clear = task
+                            .pillars
+                            .iter()
+                            .all(|p| segment.dist(p.point()) >= p.radius);
+                        musicians_clear && pillars_clear
                     })
                     .collect()
             })

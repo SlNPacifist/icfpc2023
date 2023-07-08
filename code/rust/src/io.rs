@@ -15,6 +15,29 @@ pub struct Task {
     pub stage_bottom_left: (f64, f64),
     pub musicians: Vec<usize>,
     pub attendees: Vec<Attendee>,
+    pub pillars: Vec<Pillar>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Pillar {
+    pub center: (f64, f64),
+    pub radius: f64,
+}
+
+impl Pillar {
+    pub fn transpose(self) -> Self {
+        Self {
+            center: (self.center.1, self.center.0),
+            radius: self.radius
+        }
+    }
+
+    pub fn point(&self) -> Point {
+        Point {
+            x: self.center.0,
+            y: self.center.1,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -74,6 +97,7 @@ impl Task {
             stage_bottom_left: (self.stage_bottom_left.1, self.stage_bottom_left.0),
             musicians: self.musicians,
             attendees: self.attendees.into_iter().map(|a| a.transpose()).collect(),
+            pillars: self.pillars.into_iter().map(|p| p.transpose()).collect(),
         }
     }
 
