@@ -34,6 +34,7 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
     }).collect()
 }
 
+#[derive(Clone)]
 pub struct Visibility {
     pub visibility: Vec<Vec<bool>>,
 }

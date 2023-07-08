@@ -17,23 +17,54 @@ const BASE_SOLUTIONS_DIR: &str = "../../solutions-20230708-124428";
 const OPTIMAL_SOLUTIONS_DIR: &str = "../../solutions";
 const TASKS_NUM: usize = 90;
 
-fn get_base_solution(task: &Task, i: usize) -> Solution {
-    let solution_path = format!("{BASE_SOLUTIONS_DIR}/problem-{i}.json");
-
-    if std::fs::metadata(&solution_path).is_ok() {
-        io::read_solution(&solution_path)
+fn get_solution(task: &Task, i: usize, solution_path: &str) -> Solution {
+    if std::fs::metadata(solution_path).is_ok() {
+        io::read_solution(solution_path)
     } else {
         let sol = dummy(&task);
-        io::write(&solution_path, &sol);
+        io::write(solution_path, &sol);
         sol
     }
+}
+
+fn get_base_solution(task: &Task, i: usize) -> Solution {
+    get_solution(task, i, &format!("{BASE_SOLUTIONS_DIR}/problem-{i}.json"))
+}
+
+fn get_optimal_solution(task: &Task, i: usize) -> Solution {
+    get_solution(
+        task,
+        i,
+        &format!("{OPTIMAL_SOLUTIONS_DIR}/problem-{i}.json"),
+    )
 }
 
 fn read_task(i: usize) -> Task {
     io::read(&format!("../../data/problem-{i}.json"))
 }
 
-fn write_optimal_solution(solution: &Solution, i: usize) {
+fn write_optimal_solution(task: &Task, solution: &Solution, points: i64, i: usize) {
+    let cur_solution = get_optimal_solution(task, i);
+    let visibility = score::calc_visibility(&task, &cur_solution);
+
+    match score::calc(&task, &cur_solution, &visibility) {
+        Ok(cur_points) => {
+            if cur_points > points {
+                println!(
+                    "Solution for task {i} was not improved (currently {cur_points}, updated {points})"
+                );
+                return;
+            } else if cur_points == points {
+                println!("Solution for task {i} did not change")
+            } else {
+                println!("Solution for task {i} was improved from {cur_points} to {points}");
+            }
+        }
+        Err(_) => {
+            println!("Solution for task {i} was incorrect, got {points} points");
+        }
+    };
+
     io::write(
         &format!("{OPTIMAL_SOLUTIONS_DIR}/problem-{i}.json"),
         &solution,
@@ -52,9 +83,9 @@ fn main() {
             let mut potential_scores = (1..=TASKS_NUM)
                 .map(|i| {
                     let task = read_task(i);
-                    let base_solution = get_base_solution(&task, i);
-                    let visibility = score::calc_visibility(&task, &base_solution);
-                    let score = score::calc(&task, &base_solution, &visibility).unwrap_or(0);
+                    let optimal_solution = get_optimal_solution(&task, i);
+                    let visibility = score::calc_visibility(&task, &optimal_solution);
+                    let score = score::calc(&task, &optimal_solution, &visibility).unwrap_or(0);
                     (potential_score(&task), i, score)
                 })
                 .collect::<Vec<_>>();
@@ -73,25 +104,30 @@ fn main() {
             for i in 1..=TASKS_NUM {
                 println!("===================================");
                 let task = read_task(i);
-                let mut best_solution = get_base_solution(&task, i);
-                let visibility = score::calc_visibility(&task, &best_solution);
+                let base_solution = get_base_solution(&task, i);
+                let visibility = score::calc_visibility(&task, &base_solution);
 
-                let mut max_score = match score::calc(&task, &best_solution, &visibility) {
+                match score::calc(&task, &base_solution, &visibility) {
                     Ok(points) => {
                         println!(
                             "Base solution from {BASE_SOLUTIONS_DIR} for task {i} got {points} points"
                         );
-                        points
+
+                        let (best_solution, visibility) =
+                            optimize_do_talogo(&task, &base_solution, visibility);
+                        match score::calc(&task, &best_solution, &visibility) {
+                            Ok(points) => write_optimal_solution(&task, &best_solution, points, i),
+                            Err(_) => {
+                                println!("Could not find correct solution for task {i}");
+                            }
+                        }
                     }
                     Err(err) => {
                         println!(
                             "Base solution from {BASE_SOLUTIONS_DIR} for task {i} is incorrect: {err}"
                         );
-                        -1_000_000_000_000
                     }
                 };
-
-                let (solution, visibility) = optimize_do_talogo(&task, &best_solution, visibility);
 
                 // {
                 //     let (solution, visibility) = force_greedy_combined(&task, &best_solution);
@@ -157,7 +193,6 @@ fn main() {
                 //         }
                 //     }
                 // }
-                write_optimal_solution(&best_solution, i);
             }
         }
         _ => unreachable!("clap should ensure we don't get here"),

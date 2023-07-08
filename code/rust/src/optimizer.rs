@@ -8,7 +8,10 @@ use crate::{
 };
 use std::collections::BinaryHeap;
 
-static OPTIMIZERS: [(fn(&Task, &Solution, &Visibility) -> (Solution, Visibility), &'static str); 2] = [
+static OPTIMIZERS: [(
+    fn(&Task, &Solution, &Visibility) -> (Solution, Visibility),
+    &'static str,
+); 2] = [
     (force_based_optimizer, "Force based"),
     (optimize_placements_greedy, "Greedy placement"),
 ];
@@ -206,6 +209,7 @@ pub fn optimize_do_talogo(
     visibility: Visibility,
 ) -> (Solution, Visibility) {
     let mut best_solution = initial_solution.clone();
+    let mut best_visibility = visibility.clone();
     let mut max_score = match calc(task, initial_solution, &visibility) {
         Ok(res) => res,
         _ => return (best_solution, visibility),
@@ -216,7 +220,7 @@ pub fn optimize_do_talogo(
         score_changed = false;
 
         for (optimize, name) in OPTIMIZERS {
-            let (solution, visibility) = optimize(&task, &best_solution, &visibility);
+            let (solution, visibility) = optimize(&task, &best_solution, &best_visibility);
 
             match score::calc(&task, &solution, &visibility) {
                 Ok(points) => {
@@ -224,6 +228,7 @@ pub fn optimize_do_talogo(
                     if points > max_score {
                         max_score = points;
                         best_solution = solution;
+                        best_visibility = visibility;
                         score_changed = true;
                     }
                 }
@@ -234,5 +239,5 @@ pub fn optimize_do_talogo(
         }
     }
 
-    (best_solution, visibility)
+    (best_solution, best_visibility)
 }
