@@ -68,11 +68,13 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
     }
   }
 
+  const maxD = Math.max(...attendees.flatMap(({x, y}) => [x, y]));
+
   return {
     scores,
     frameProps: {
-      xExtent: [0, problem.room_width],
-      yExtent: [0, problem.room_height],
+      xExtent: [0, maxD],
+      yExtent: [0, maxD],
       lines: [{
         coordinates: [
           {x: problem.stage_bottom_left[0], y: problem.stage_bottom_left[1]},
@@ -85,7 +87,7 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
       }],
       lineStyle: { stroke: "#ff0000", strokeWidth: 2 },
       points: [...attendees, ...placements], //[{ y: 326, x: 0.23, size: 55, color: "#ac58e5", clarity: "SI2" }],
-      size: [1000, 800],
+      size: [800, 800],
       xAccessor: "x",
       yAccessor: "y",
       pointStyle: function(e) { return { fill: e.color, fillOpacity: .9 } },
