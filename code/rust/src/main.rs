@@ -1,4 +1,6 @@
 use crate::optimizer::force_greedy_combined;
+use crate::solution::dummy;
+use std::path::Path;
 
 mod genetics;
 mod geom;
@@ -10,10 +12,18 @@ mod solution;
 fn main() {
     let base_solutions_dir = "../../solutions-20230708-124428";
 
-    for i in 1..=55 {
+    for i in 1..=90 {
         let task = io::read(&format!("../../data/problem-{i}.json"));
 
-        let base_solution = io::read_solution(&format!("{base_solutions_dir}/problem-{i}.json"));
+        let solution_path = format!("{base_solutions_dir}/problem-{i}.json");
+        
+        let base_solution = if std::fs::metadata(&solution_path).is_ok() {
+            io::read_solution(&solution_path)
+        } else {
+            let sol = dummy(&task);
+            io::write(&solution_path, &sol);
+            sol
+        };
 
         let visibility = score::calc_visibility(&task, &base_solution);
 
@@ -81,25 +91,25 @@ fn main() {
             }
         }
 
-        {
-            if best_solution.placements.len() <= 100 {
-                let solution = genetics::optimize_placements(&task, &best_solution);
-                let visibility = score::calc_visibility(&task, &solution);
-                match score::calc(&task, &solution, &visibility) {
-                    Result::Ok(points) => {
-                        println!("Genetic solution for task {i} got {points} points");
-                        if points > max_score {
-                            // max_score = points;
-                            io::write(&format!("../../solutions/problem-{i}.json"), &solution);
-                            // best_solution = solution;
-                        }
-                    }
-                    Result::Err(err) => {
-                        println!("Genetic solution for task {i} is incorrect: {err}")
-                    }
-                }
-            }
-        }
+        // {
+        //     if best_solution.placements.len() <= 100 {
+        //         let solution = genetics::optimize_placements(&task, &best_solution);
+        //         let visibility = score::calc_visibility(&task, &solution);
+        //         match score::calc(&task, &solution, &visibility) {
+        //             Result::Ok(points) => {
+        //                 println!("Genetic solution for task {i} got {points} points");
+        //                 if points > max_score {
+        //                     // max_score = points;
+        //                     io::write(&format!("../../solutions/problem-{i}.json"), &solution);
+        //                     // best_solution = solution;
+        //                 }
+        //             }
+        //             Result::Err(err) => {
+        //                 println!("Genetic solution for task {i} is incorrect: {err}")
+        //             }
+        //         }
+        //     }
+        // }
 
         // io::write(&format!("../../solutions/problem-{i}.json"), &solution);
     }
