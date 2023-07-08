@@ -1,3 +1,4 @@
+use derive_more::{Add, Mul, Sum};
 use serde::{Deserialize, Serialize};
 use std::ops::Sub;
 
@@ -24,6 +25,17 @@ impl Point {
     }
 }
 
+impl std::ops::Add<Vector> for Point {
+    type Output = Point;
+
+    fn add(self, other: Vector) -> Point {
+        Point {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
 impl Sub for Point {
     type Output = Vector;
 
@@ -35,7 +47,7 @@ impl Sub for Point {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Add, Sum, Mul)]
 pub struct Vector {
     pub x: f64,
     pub y: f64,

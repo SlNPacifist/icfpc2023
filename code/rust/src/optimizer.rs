@@ -1,3 +1,6 @@
+use crate::geom::{Point, Vector};
+use crate::io::MUSICIAN_RADIUS;
+use crate::score::calc_visibility;
 use crate::{
     io::{Solution, Task},
     score::{attendee_score, Visibility},
@@ -42,4 +45,130 @@ pub fn optimize_placements_greedy(
         position_is_picked[pos_index] = true;
     }
     res
+}
+
+// TODO schedule
+const OPTIMIZING_FORCE_MULTIPLIER: f64 = 1e-6;
+const RELAXING_FORCE_MULTIPLIER: f64 = OPTIMIZING_FORCE_MULTIPLIER / 2.0;
+const RELAXING_FORCE_BASE: f64 = 1.0;
+const STEPS: usize = 1000;
+
+const MUSICIAN_RADIUS_SQR: f64 = MUSICIAN_RADIUS * MUSICIAN_RADIUS;
+
+fn run_force_based_step(
+    task: &Task,
+    start_solution: &Solution,
+    visibility: &Visibility,
+    force_collector: impl Fn(&Task, &Solution, &Visibility, usize, Point) -> Vector,
+    power_multiplier: f64,
+) -> Solution {
+    let mut new_positions = start_solution.clone();
+    // TODO shuffle positions before iteration
+    for (pos_index, old_position) in start_solution.placements.iter().enumerate() {
+        let force = force_collector(task, start_solution, visibility, pos_index, *old_position);
+
+        let force = force * power_multiplier;
+        // println!("applying force: point #{pos_index} {old_position:?}, force {force:?}");
+
+        // TODO try multiple times with smaller steps in same directions
+        let mut new_position = new_positions.placements[pos_index] + force;
+        new_position.x = new_position.x.clamp(
+            task.stage_left() + MUSICIAN_RADIUS,
+            task.stage_right() - MUSICIAN_RADIUS,
+        );
+        new_position.y = new_position.x.clamp(
+            task.stage_bottom() + MUSICIAN_RADIUS,
+            task.stage_top() - MUSICIAN_RADIUS,
+        );
+
+        if new_positions
+            .placements
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| *i != pos_index)
+            .any(|(_, other_new_pos)| new_position.dist_sqr(*other_new_pos) < MUSICIAN_RADIUS_SQR)
+        {
+            continue;
+        }
+
+        new_positions.placements[pos_index] = new_position;
+    }
+
+    new_positions
+}
+
+pub fn force_based_optimizer(task: &Task, initial_solution: &Solution) -> Solution {
+    let visibility = calc_visibility(task, initial_solution);
+
+    let mut result = initial_solution.clone();
+
+    let mut optimizing_force_sched_multiplier = OPTIMIZING_FORCE_MULTIPLIER;
+    let mut relaxing_force_sched_multiplier = RELAXING_FORCE_MULTIPLIER;
+
+    for _ in 0..STEPS {
+        // optimizing phase
+        {
+            let force_collector = |task: &Task,
+                                   _start_solution: &Solution,
+                                   visibility: &Visibility,
+                                   pos_index: usize,
+                                   old_position: Point| {
+                task.attendees
+                    .iter()
+                    .enumerate()
+                    .filter(|(index, _)| visibility.is_visible(*index, pos_index))
+                    .map(|(_, attendee)| {
+                        let instrument = task.musicians[pos_index];
+                        let force =
+                            attendee_score(attendee, instrument, result.placements[pos_index])
+                                as f64;
+                        (attendee.coord() - old_position) * force
+                    })
+                    .sum::<Vector>()
+            };
+
+            result = run_force_based_step(
+                task,
+                &result,
+                &visibility,
+                force_collector,
+                optimizing_force_sched_multiplier,
+            );
+        }
+
+        // relaxing phase
+        {
+            let force_collector = |_task: &Task,
+                                   start_solution: &Solution,
+                                   _visibility: &Visibility,
+                                   pos_index: usize,
+                                   old_position: Point| {
+                start_solution
+                    .placements
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != pos_index)
+                    .map(|(_, other_musician_position)| {
+                        let force = -1.0 * RELAXING_FORCE_BASE
+                            / old_position.dist_sqr(*other_musician_position);
+                        (*other_musician_position - old_position) * force
+                    })
+                    .sum::<Vector>()
+            };
+
+            result = run_force_based_step(
+                task,
+                &result,
+                &visibility,
+                force_collector,
+                relaxing_force_sched_multiplier,
+            );
+        }
+
+        // TODO proper schedule
+        optimizing_force_sched_multiplier *= 0.99;
+        relaxing_force_sched_multiplier *= 0.99;
+    }
+
+    result
 }

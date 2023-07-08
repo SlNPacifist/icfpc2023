@@ -1,4 +1,5 @@
 use crate::io::{Task, MUSICIAN_RADIUS};
+use crate::optimizer::force_based_optimizer;
 
 mod geom;
 mod io;
@@ -34,6 +35,25 @@ fn main() {
             }
             Result::Err(err) => {
                 println!("Solution for task {i} is incorrect: {err}")
+            }
+        }
+
+        {
+            let mut new_s = solution.clone();
+            for _ in 0..3 {
+                let f_s = force_based_optimizer(&task, &new_s);
+                let f_v = score::calc_visibility(&task, &f_s);
+                new_s = optimizer::optimize_placements_greedy(&task, &f_s, &f_v);
+            }
+            let new_v = score::calc_visibility(&task, &new_s);
+
+            match score::calc(&task, &new_s, &new_v) {
+                Result::Ok(points) => {
+                    println!("Force based solution for task {i} got {points} points")
+                }
+                Result::Err(err) => {
+                    println!("Force based solution for task {i} is incorrect: {err}")
+                }
             }
         }
 
