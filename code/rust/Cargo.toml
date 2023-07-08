@@ -14,3 +14,4 @@ itertools = "0.11.0"
 derive_more = "0.99.17"
 genevo = "0.7.1"
 num-format = "0.4.4"
+clap = {version = "4.3.11", features = ["cargo"]}
