@@ -5,14 +5,16 @@ use crate::{
     io::{Solution, Task},
     score::{attendee_score, Visibility},
 };
+use crate::genetics;
 use std::collections::BinaryHeap;
 
 static OPTIMIZERS: [(
     fn(&Task, &Solution, &Visibility) -> (Solution, Visibility),
     &'static str,
-); 2] = [
+); 3] = [
     (force_based_optimizer, "Force based"),
     (optimize_placements_greedy, "Greedy placement"),
+    (genetics::optimize_placements, "Genetic"),
 ];
 
 pub fn optimize_placements_greedy(

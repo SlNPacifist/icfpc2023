@@ -1,6 +1,7 @@
 use crate::geom::Point;
 use crate::io::{Solution, Task};
 use crate::score::{calc, calc_visibility, Visibility};
+use crate::solution;
 use genevo::{operator::prelude::*, population::*, prelude::*, types::fmt::Display};
 
 type Genome = Vec<f64>;
@@ -69,7 +70,13 @@ impl<'a> FitnessFunction<Genome, i64> for &'a Task {
     }
 }
 
-pub fn optimize_placements(task: &Task, solution: &Solution) -> (Solution, Visibility) {
+pub fn optimize_placements(task: &Task, solution: &Solution, visibility: &Visibility) -> (Solution, Visibility) {
+    let musicians = solution.placements.len();
+    let attendees = task.attendees.len();
+    if musicians * attendees > 10000 {
+        return (solution.clone(), visibility.clone());
+    }
+
     let placement: Vec<f64> = genome_from_solution(task, solution);
     let len = (placement.len() * 2).max(50);
     let initial_population = Population::with_individuals(vec![placement; len]);
@@ -94,49 +101,31 @@ pub fn optimize_placements(task: &Task, solution: &Solution) -> (Solution, Visib
             Ok(SimResult::Intermediate(step)) => {
                 let evaluated_population = step.result.evaluated_population;
                 let best_solution = step.result.best_solution;
-                println!(
-                    "step: generation: {}, average_fitness: {}, \
-                     best fitness: {}, duration: {}, processing_time: {}",
-                    step.iteration,
-                    evaluated_population.average_fitness(),
-                    best_solution.solution.fitness,
-                    step.duration.fmt(),
-                    step.processing_time.fmt(),
-                );
-                // let Task = best_solution
-                //     .solution
-                //     .genome
-                //     .as_task(&problem.given_items);
                 // println!(
-                //     "      Task: number of items: {}, total value: {}, total weight: {}",
-                //     Task.items.len(),
-                //     Task.value,
-                //     Task.weight
+                //     "step: generation: {}, average_fitness: {}, \
+                //      best fitness: {}, duration: {}, processing_time: {}",
+                //     step.iteration,
+                //     evaluated_population.average_fitness(),
+                //     best_solution.solution.fitness,
+                //     step.duration.fmt(),
+                //     step.processing_time.fmt(),
                 // );
             }
             Ok(SimResult::Final(step, processing_time, duration, stop_reason)) => {
                 let best_solution = step.result.best_solution;
-                println!("{}", stop_reason);
-                println!(
-                    "Final result after {}: generation: {}, \
-                     best genome with fitness {} found in generation {}, processing_time: {}",
-                    duration.fmt(),
-                    step.iteration,
-                    best_solution.solution.fitness,
-                    best_solution.generation,
-                    processing_time.fmt(),
-                );
-                // let Task = best_solution
-                //     .genome
-                //     .genome
-                //     .as_task(&problem.given_items);
+                // println!("{}", stop_reason);
                 // println!(
-                //     "      Task: number of items: {}, total value: {}, total weight: {}",
-                //     Task.items.len(),
-                //     Task.value,
-                //     Task.weight
+                //     "Final result after {}: generation: {}, \
+                //      best genome with fitness {} found in generation {}, processing_time: {}",
+                //     duration.fmt(),
+                //     step.iteration,
+                //     best_solution.solution.fitness,
+                //     best_solution.generation,
+                //     processing_time.fmt(),
                 // );
-                return genome_to_solution(task, &best_solution.solution.genome);
+                let solution = genome_to_solution(task, &best_solution.solution.genome);
+                let visibility = calc_visibility(task, &solution);
+                return (solution, visibility);
             }
             Err(error) => {
                 println!("{}", error);
@@ -145,5 +134,5 @@ pub fn optimize_placements(task: &Task, solution: &Solution) -> (Solution, Visib
         }
     }
 
-    solution.clone()
+    (solution.clone(), visibility.clone())
 }
