@@ -1,5 +1,6 @@
 use crate::solution::dummy;
 use crate::{optimizer::force_greedy_combined, score::potential_score};
+use io::{Solution, Task};
 use num_format::{Locale, ToFormattedString};
 use clap;
 
@@ -10,33 +11,58 @@ mod optimizer;
 mod score;
 mod solution;
 
+const BASE_SOLUTIONS_DIR: &str = "../../solutions-20230708-124428";
+const TASKS_NUM: usize = 90;
+
+fn get_base_solution(task: &Task, i: usize) -> Solution {
+    let solution_path = format!("{BASE_SOLUTIONS_DIR}/problem-{i}.json");
+        
+    if std::fs::metadata(&solution_path).is_ok() {
+        io::read_solution(&solution_path)
+    } else {
+        let sol = dummy(&task);
+        io::write(&solution_path, &sol);
+        sol
+    }
+}
+
+fn read_task(i: usize) -> Task {
+    io::read(&format!("../../data/problem-{i}.json"))   
+}
+
 fn main() {
     let cmd = clap::Command::new("rust")
     .bin_name("rust")
     .subcommand_required(true)
     .subcommand(
         clap::command!("score")
-    );
+    ).subcommand(clap::command!("potential"));
     let matches = cmd.get_matches();
     match matches.subcommand() {
-        Some(("score", _matches)) => {
-            let base_solutions_dir = "../../solutions-20230708-124428";
+        Some(("potential", _matches)) => {
+            let mut potential_scores = (1..=TASKS_NUM).map(|i| {
+                let task = read_task(i);
+                let base_solution = get_base_solution(&task, i);
+                let visibility = score::calc_visibility(&task, &base_solution);
+                let score = score::calc(&task, &base_solution, &visibility).unwrap_or(0);
+                (potential_score(&task), i, score)
+            }).collect::<Vec<_>>();
+        
+            potential_scores.sort();
+            for (score, index, cur_score) in potential_scores {
+                println!(
+                    "Potential score for task {index:2} is {:>15}, cur score is {:>13}",
+                    score.to_formatted_string(&Locale::en),
+                    cur_score.to_formatted_string(&Locale::en)
+                );
+            }
+        },
 
-            let mut potential_scores: Vec<(i64, usize, i64)> = Vec::new();
-        
-            for i in 1..=90 {
-                let task = io::read(&format!("../../data/problem-{i}.json"));
-        
-                let solution_path = format!("{base_solutions_dir}/problem-{i}.json");
-        
-                let base_solution = if std::fs::metadata(&solution_path).is_ok() {
-                    io::read_solution(&solution_path)
-                } else {
-                    let sol = dummy(&task);
-                    io::write(&solution_path, &sol);
-                    sol
-                };
-        
+        Some(("score", _matches)) => {
+
+            for i in 1..=TASKS_NUM {
+                let task = read_task(i);
+                let base_solution = get_base_solution(&task, i);
                 let visibility = score::calc_visibility(&task, &base_solution);
         
                 let mut best_solution = base_solution.clone();
@@ -44,21 +70,17 @@ fn main() {
                 let mut max_score = match score::calc(&task, &base_solution, &visibility) {
                     Ok(points) => {
                         println!(
-                            "Base solution from {base_solutions_dir} for task {i} got {points} points"
+                            "Base solution from {BASE_SOLUTIONS_DIR} for task {i} got {points} points"
                         );
                         points
                     }
                     Err(err) => {
                         println!(
-                            "Base solution from {base_solutions_dir} for task {i} is incorrect: {err}"
+                            "Base solution from {BASE_SOLUTIONS_DIR} for task {i} is incorrect: {err}"
                         );
-                        // panic!("bad base solution")
-                        0
+                        -1_000_000_000_000
                     }
                 };
-                potential_scores.push((potential_score(&task), i, max_score));
-        
-                continue;
         
                 {
                     let (solution, visibility) = force_greedy_combined(&task, &base_solution);
@@ -106,7 +128,7 @@ fn main() {
                         }
                     }
                 }
-        
+
                 {
                     if best_solution.placements.len() <= 0 {
                         let solution = genetics::optimize_placements(&task, &best_solution);
@@ -128,15 +150,6 @@ fn main() {
                 }
         
                 // io::write(&format!("../../solutions/problem-{i}.json"), &solution);
-            }
-        
-            potential_scores.sort();
-            for (score, index, cur_score) in potential_scores {
-                println!(
-                    "Potential score for task {index:2} is {:>15}, cur score is {:>13}",
-                    score.to_formatted_string(&Locale::en),
-                    cur_score.to_formatted_string(&Locale::en)
-                );
             }
         },
         _ => unreachable!("clap should ensure we don't get here"),
