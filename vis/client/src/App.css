@@ -31,6 +31,10 @@
   margin: 20px;
 }
 
+.App-xyframe .frame-elements {
+  position: relative;
+}
+
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);

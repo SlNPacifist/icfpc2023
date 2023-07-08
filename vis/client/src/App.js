@@ -206,7 +206,7 @@ function App() {
         <div className="App-selector">
           <ProblemSelector N={N} onChange={onChange} />
         </div>
-        <XYFrame {...frameProps} />
+        <XYFrame {...frameProps} className="App-xyframe"/>
         {/* {isVisible.map((s, idx) => {
           const score = s.reduce((p, c) => p + (c ? "1" : "0"), "");
           return (
