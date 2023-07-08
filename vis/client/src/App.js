@@ -50,6 +50,7 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
     ...at,
     index,
     color: "#003f5c",
+    radius: 2.0,
   }));
 
   const placements = solution.placements.map((p, index) => ({
