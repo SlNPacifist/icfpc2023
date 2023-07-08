@@ -8,6 +8,9 @@ import ProblemSelector from './components/ProblemSelector.react';
 
 const N = 91;
 
+const COLOR_CODING_BAD = ['#af1f28', '#cc2127', '#e43025', '#ef6023', '#f99e25', '#fece22'];
+const COLOR_CODING_GOOD = ['#dbe237', '#99ca3b', '#43b749', '#2db672'];
+
 function distSqr(x1, y1, x2, y2) {
   const dx = x1 - x2;
   const dy = y1 - y2;
@@ -147,6 +150,20 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
     }
   }
 
+  function getColor({type, index, color}) {
+    if (type === 'placement') {
+      const score = placementScores[index];
+      if (score < 0) {
+        return '#af1f28';
+      }
+      if (score > 0) {
+        return '#2db672';
+      }
+      return '#ccc';
+    }
+    return color;
+  }
+
   return {
     scores,
     isVisible,
@@ -181,8 +198,9 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
       yAccessor: "y",
       pointStyle: function(e) { return { fill: e.color, fillOpacity: .9 } },
       customPointMark: function(e) {
+        const color = getColor(e.d);
         // does not work with canvas
-        return ( <g><circle r={e.d.radius ? e.xScale(e.d.radius) : 1} fill={e.d.color} /></g> );
+        return ( <g><circle r={e.d.radius ? e.xScale(e.d.radius) : 1} fill={color} /></g> );
       },
       title: "Diamonds: Carat vs Price",
       axes: [{ orient: "bottom", label: "X" }, { label: "Y", orient: "left" }],
