@@ -102,21 +102,35 @@ fn dummy_opti_solver(task: &Task, spread: f64, scale_to_stage: bool) -> anyhow::
 }
 
 pub fn multi_dummy_solver(task: &Task) -> Solution {
-    let spreads: &[f64] =
+    const SPHERE_PACKING_CONST: f64 = 0.9069;
+    let mut spreads =
         if task.attendees.len() * task.musicians.len() * task.musicians.len() > 1863225000 {
-            &[1.1, 1.01, 1.0]
+            vec![1.1, 1.01, 1.0]
         } else {
-            &[1.5, 1.1, 1.05, 1.01, 1.005, 1.001, 1.0]
+            vec![5.0, 3.0, 2.0, 1.5, 1.1, 1.05, 1.01, 1.005, 1.001, 1.0]
         };
+
+    let single_musician_area = std::f64::consts::PI * MUSICIAN_RADIUS * MUSICIAN_RADIUS;
+    let total_musicians_area =
+        task.musicians.len() as f64 * single_musician_area * SPHERE_PACKING_CONST;
+    let starting_spread = (task.stage_width * task.stage_height) as f64 / total_musicians_area;
+
+    // just for safety
+    let mut area_based_spread = 0.99 * starting_spread;
+    let area_spreads_count = 3;
+    for _ in 0..area_spreads_count {
+        spreads.push(area_based_spread);
+        area_based_spread *= 0.5;
+    }
 
     let scale_stage = [false, true];
 
     use itertools::Itertools;
 
     spreads
-        .iter()
+        .into_iter()
         .cartesian_product(scale_stage.into_iter())
-        .map(|(spread, scale)| dummy_opti_solver(task, *spread, scale))
+        .map(|(spread, scale)| dummy_opti_solver(task, spread, scale))
         .filter_map(|solution| solution.ok())
         .max_by_key(|solution| {
             let visibility = score::calc_visibility(&task, &solution);
