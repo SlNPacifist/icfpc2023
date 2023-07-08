@@ -57,7 +57,7 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
     ...p,
     index,
     color: "#d45087",
-    radius: 10.0,
+    radius: 5.0,
   }));
 
   const pillars = problem.pillars.map(({
@@ -143,9 +143,20 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
           {x: problem.stage_bottom_left[0], y: problem.stage_bottom_left[1] + problem.stage_height},
           {x: problem.stage_bottom_left[0], y: problem.stage_bottom_left[1]},
         ],
-        color: "#ff0000"
+        color: "#ff0000",
+        strokeDasharray: '',
+      }, {
+        coordinates: [
+          {x: problem.stage_bottom_left[0] + 5, y: problem.stage_bottom_left[1] + 5},
+          {x: problem.stage_bottom_left[0] + problem.stage_width - 5, y: problem.stage_bottom_left[1] + 5},
+          {x: problem.stage_bottom_left[0] + problem.stage_width - 5, y: problem.stage_bottom_left[1] + problem.stage_height - 5},
+          {x: problem.stage_bottom_left[0] + 5, y: problem.stage_bottom_left[1] + problem.stage_height - 5},
+          {x: problem.stage_bottom_left[0] + 5, y: problem.stage_bottom_left[1] + 5},
+        ],
+        color: "#00ff00",
+        strokeDasharray: '15',
       }],
-      lineStyle: { stroke: "#ff0000", strokeWidth: 2 },
+      lineStyle: ({color, strokeDasharray}) => ({ stroke: color, strokeWidth: 2, strokeDasharray}),
       points: [...attendees, ...placements, ...pillars], //[{ y: 326, x: 0.23, size: 55, color: "#ac58e5", clarity: "SI2" }],
       size: [10000, 10000],
       xAccessor: "x",
