@@ -6,6 +6,7 @@ mod io;
 mod optimizer;
 mod score;
 mod solution;
+mod genetics;
 
 fn main() {
     for i in 1..=55 {
@@ -54,6 +55,18 @@ fn main() {
                 Result::Err(err) => {
                     println!("Force based solution for task {i} is incorrect: {err}")
                 }
+            }
+        }
+
+        println!("Trying genetics optimizer");
+        let optimized_solution = genetics::optimize_placements(&task, &solution);
+        let optimized_visibility = score::calc_visibility(&task, &solution);
+        match score::calc(&task, &optimized_solution, &optimized_visibility) {
+            Result::Ok(points) => {
+                println!("Optimized solution for task {i} got {points} points")
+            }
+            Result::Err(err) => {
+                println!("Optimized solution for task {i} is incorrect: {err}")
             }
         }
 
