@@ -1,3 +1,4 @@
+use crate::genetics;
 use crate::geom::{Point, Vector};
 use crate::io::MUSICIAN_RADIUS;
 use crate::score::{self, calc, calc_visibility};
@@ -5,7 +6,6 @@ use crate::{
     io::{Solution, Task},
     score::{attendee_score, Visibility},
 };
-use crate::genetics;
 use std::collections::BinaryHeap;
 
 static OPTIMIZERS: [(

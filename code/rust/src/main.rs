@@ -57,7 +57,7 @@ fn write_optimal_solution(task: &Task, solution: &Solution, points: i64, i: usiz
             } else if cur_points == points {
                 println!("Solution for task {i} did not change")
             } else {
-                println!("Solution for task {i} was improved from {cur_points} to {points}");
+                println!("+++Solution for task {i} was improved from {cur_points} to {points}");
             }
         }
         Err(_) => {
@@ -89,11 +89,13 @@ fn main() {
     let cmd = clap::Command::new("rust")
         .bin_name("rust")
         .subcommand_required(true)
-        .subcommand(clap::command!("optimize").arg(
-            arg!([base])
-                .value_parser(value_parser!(String))
-                .default_value("dummy")
-        ))
+        .subcommand(
+            clap::command!("optimize").arg(
+                arg!([base])
+                    .value_parser(value_parser!(String))
+                    .default_value("dummy"),
+            ),
+        )
         .subcommand(clap::command!("potential"));
     let matches = cmd.get_matches();
     match matches.subcommand() {
@@ -122,7 +124,9 @@ fn main() {
             for i in 1..=TASKS_NUM {
                 println!("===================================");
                 let task = read_task(i);
-                let base_solution_name = matches.get_one::<String>("base").expect("base should be specified");
+                let base_solution_name = matches
+                    .get_one::<String>("base")
+                    .expect("base should be specified");
                 let base_solution = match base_solution_name.as_str() {
                     "dummy" => get_base_solution(&task, i),
                     "spread" => get_spread_solution(&task),
@@ -132,9 +136,7 @@ fn main() {
 
                 match score::calc(&task, &base_solution, &visibility) {
                     Ok(points) => {
-                        println!(
-                            "{base_solution_name} solution for task {i} got {points} points"
-                        );
+                        println!("{base_solution_name} solution for task {i} got {points} points");
 
                         let (best_solution, visibility) =
                             optimize_do_talogo(&task, &base_solution, visibility);
@@ -155,25 +157,25 @@ fn main() {
         }
         // Some(("spread_optimize", _matches)) => {
 
-                // {
-                //     if best_solution.placements.len() <= 0 {
-                //         let solution = genetics::optimize_placements(&task, &best_solution);
-                //         let visibility = score::calc_visibility(&task, &solution);
-                //         match score::calc(&task, &solution, &visibility) {
-                //             Result::Ok(points) => {
-                //                 println!("Genetic solution for task {i} got {points} points");
-                //                 if points > max_score {
-                //                     max_score = points;
-                //                     best_solution = solution;
-                //                 }
-                //             }
-                //             Result::Err(err) => {
-                //                 println!("Genetic solution for task {i} is incorrect: {err}")
-                //             }
-                //         }
-                //     }
-                // }
-            // }
+        // {
+        //     if best_solution.placements.len() <= 0 {
+        //         let solution = genetics::optimize_placements(&task, &best_solution);
+        //         let visibility = score::calc_visibility(&task, &solution);
+        //         match score::calc(&task, &solution, &visibility) {
+        //             Result::Ok(points) => {
+        //                 println!("Genetic solution for task {i} got {points} points");
+        //                 if points > max_score {
+        //                     max_score = points;
+        //                     best_solution = solution;
+        //                 }
+        //             }
+        //             Result::Err(err) => {
+        //                 println!("Genetic solution for task {i} is incorrect: {err}")
+        //             }
+        //         }
+        //     }
+        // }
+        // }
         // }
         _ => unreachable!("clap should ensure we don't get here"),
     };

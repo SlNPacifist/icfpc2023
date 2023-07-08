@@ -28,7 +28,7 @@ impl Pillar {
     pub fn transpose(self) -> Self {
         Self {
             center: (self.center.1, self.center.0),
-            radius: self.radius
+            radius: self.radius,
         }
     }
 

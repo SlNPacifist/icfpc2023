@@ -70,7 +70,11 @@ impl<'a> FitnessFunction<Genome, i64> for &'a Task {
     }
 }
 
-pub fn optimize_placements(task: &Task, solution: &Solution, visibility: &Visibility) -> (Solution, Visibility) {
+pub fn optimize_placements(
+    task: &Task,
+    solution: &Solution,
+    visibility: &Visibility,
+) -> (Solution, Visibility) {
     let musicians = solution.placements.len();
     let attendees = task.attendees.len();
     if musicians * attendees > 10000 {
@@ -98,9 +102,9 @@ pub fn optimize_placements(task: &Task, solution: &Solution, visibility: &Visibi
         let result = task_sim.step();
 
         match result {
-            Ok(SimResult::Intermediate(step)) => {
-                let evaluated_population = step.result.evaluated_population;
-                let best_solution = step.result.best_solution;
+            Ok(SimResult::Intermediate(_step)) => {
+                // let evaluated_population = step.result.evaluated_population;
+                // let best_solution = step.result.best_solution;
                 // println!(
                 //     "step: generation: {}, average_fitness: {}, \
                 //      best fitness: {}, duration: {}, processing_time: {}",
@@ -111,7 +115,7 @@ pub fn optimize_placements(task: &Task, solution: &Solution, visibility: &Visibi
                 //     step.processing_time.fmt(),
                 // );
             }
-            Ok(SimResult::Final(step, processing_time, duration, stop_reason)) => {
+            Ok(SimResult::Final(step, _processing_time, _duration, _stop_reason)) => {
                 let best_solution = step.result.best_solution;
                 // println!("{}", stop_reason);
                 // println!(
