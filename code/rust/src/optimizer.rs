@@ -1,17 +1,23 @@
 use crate::geom::{Point, Vector};
 use crate::io::MUSICIAN_RADIUS;
-use crate::score::calc_visibility;
+use crate::score::{self, calc, calc_visibility};
+use crate::solution;
 use crate::{
     io::{Solution, Task},
     score::{attendee_score, Visibility},
 };
 use std::collections::BinaryHeap;
 
+static OPTIMIZERS: [(fn(&Task, &Solution, &Visibility) -> (Solution, Visibility), &'static str); 2] = [
+    (force_based_optimizer, "Force based"),
+    (optimize_placements_greedy, "Greedy placement"),
+];
+
 pub fn optimize_placements_greedy(
     task: &Task,
     solution: &Solution,
     visibility: &Visibility,
-) -> Solution {
+) -> (Solution, Visibility) {
     let mut moves = BinaryHeap::new();
     for instrument in 0..task.instruments_len() {
         for pos_index in 0..solution.placements.len() {
@@ -44,7 +50,8 @@ pub fn optimize_placements_greedy(
         res.placements[musician_id] = solution.placements[pos_index];
         position_is_picked[pos_index] = true;
     }
-    res
+    let visibility = calc_visibility(task, &res);
+    (res, visibility)
 }
 
 // TODO schedule
@@ -103,7 +110,7 @@ pub fn force_based_optimizer(
     task: &Task,
     initial_solution: &Solution,
     visibility: &Visibility,
-) -> Solution {
+) -> (Solution, Visibility) {
     let mut result = initial_solution.clone();
 
     let mut optimizing_force_sched_multiplier = OPTIMIZING_FORCE_MULTIPLIER;
@@ -174,20 +181,58 @@ pub fn force_based_optimizer(
         relaxing_force_sched_multiplier *= 0.999;
     }
 
-    result
+    let visibility = calc_visibility(&task, &result);
+    (result, visibility)
 }
 
-pub fn force_greedy_combined(task: &Task, initial_solution: &Solution) -> (Solution, Visibility) {
-    const STEPS: usize = 10;
-    let mut result = initial_solution.clone();
-    let mut visibility = calc_visibility(task, &result);
-    for _ in 0..STEPS {
-        result = force_based_optimizer(&task, &result, &visibility);
-        visibility = calc_visibility(&task, &result);
-        result = optimize_placements_greedy(&task, &result, &visibility);
-        visibility = calc_visibility(&task, &result);
-        // dbg!(crate::score::calc(&task, &result, &visibility));
+// pub fn force_greedy_combined(task: &Task, initial_solution: &Solution) -> (Solution, Visibility) {
+//     const STEPS: usize = 10;
+//     let mut result = initial_solution.clone();
+//     let mut visibility = calc_visibility(task, &result);
+//     for _ in 0..STEPS {
+//         result = force_based_optimizer(&task, &result, &visibility);
+//         visibility = calc_visibility(&task, &result);
+//         result = optimize_placements_greedy(&task, &result, &visibility);
+//         visibility = calc_visibility(&task, &result);
+//         // dbg!(crate::score::calc(&task, &result, &visibility));
+//     }
+
+//     (result, visibility)
+// }
+
+pub fn optimize_do_talogo(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: Visibility,
+) -> (Solution, Visibility) {
+    let mut best_solution = initial_solution.clone();
+    let mut max_score = match calc(task, initial_solution, &visibility) {
+        Ok(res) => res,
+        _ => return (best_solution, visibility),
+    };
+
+    let mut score_changed = true;
+    while score_changed {
+        score_changed = false;
+
+        for (optimize, name) in OPTIMIZERS {
+            let (solution, visibility) = optimize(&task, &best_solution, &visibility);
+
+            match score::calc(&task, &solution, &visibility) {
+                Ok(points) => {
+                    println!("{name} solution got {points} points");
+                    if points > max_score {
+                        max_score = points;
+                        best_solution = solution;
+                        score_changed = true;
+                    }
+                }
+                Err(err) => {
+                    println!("{name} solution is incorrect: {err}")
+                }
+            }
+        }
     }
 
-    (result, visibility)
+    (best_solution, visibility)
 }

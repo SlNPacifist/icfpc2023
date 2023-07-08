@@ -97,7 +97,7 @@ fn dummy_opti_solver(task: &Task, spread: f64, scale_to_stage: bool) -> anyhow::
     let visibility = score::calc_visibility(&task, &solution);
     score::calc(&task, &solution, &visibility)?;
 
-    let solution = optimize_placements_greedy(&task, &solution, &visibility);
+    let (solution, _) = optimize_placements_greedy(&task, &solution, &visibility);
     Ok(solution)
 }
 

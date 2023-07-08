@@ -35,7 +35,7 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
 }
 
 pub struct Visibility {
-    visibility: Vec<Vec<bool>>,
+    pub visibility: Vec<Vec<bool>>,
 }
 
 impl Visibility {
