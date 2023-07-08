@@ -71,7 +71,7 @@ pub fn calc_visibility(task: &Task, solution: &Solution) -> Visibility {
                             .iter()
                             .enumerate()
                             .filter(|(i, _)| *i != index)
-                            .all(|(_, c)| segment.dist(*c) > MUSICIAN_BLOCK_RADIUS)
+                            .all(|(_, c)| segment.dist(*c) >= MUSICIAN_BLOCK_RADIUS)
                     })
                     .collect()
             })
