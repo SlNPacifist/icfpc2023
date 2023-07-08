@@ -1,6 +1,6 @@
 use crate::score::potential_score;
 use crate::solution::dummy;
-use clap;
+use clap::{self, arg, value_parser};
 use io::{Solution, Task};
 use num_format::{Locale, ToFormattedString};
 use optimizer::optimize_do_talogo;
@@ -71,11 +71,29 @@ fn write_optimal_solution(task: &Task, solution: &Solution, points: i64, i: usiz
     );
 }
 
+fn get_spread_solution(task: &Task) -> Solution {
+    [5.0, 3.0, 2.0, 1.5, 1.1, 1.05, 1.01, 1.005, 1.001, 1.0]
+        .into_iter()
+        .map(|spread| solution::dummy_hex(&task, spread, true))
+        .filter_map(|solution| {
+            let visibility = score::calc_visibility(&task, &solution);
+            score::calc(&task, &solution, &visibility)
+                .ok()
+                .map(|_| solution)
+        })
+        .next()
+        .unwrap()
+}
+
 fn main() {
     let cmd = clap::Command::new("rust")
         .bin_name("rust")
         .subcommand_required(true)
-        .subcommand(clap::command!("score"))
+        .subcommand(clap::command!("optimize").arg(
+            arg!([base])
+                .value_parser(value_parser!(String))
+                .default_value("dummy")
+        ))
         .subcommand(clap::command!("potential"));
     let matches = cmd.get_matches();
     match matches.subcommand() {
@@ -100,17 +118,22 @@ fn main() {
             }
         }
 
-        Some(("score", _matches)) => {
+        Some(("optimize", matches)) => {
             for i in 1..=TASKS_NUM {
                 println!("===================================");
                 let task = read_task(i);
-                let base_solution = get_base_solution(&task, i);
+                let base_solution_name = matches.get_one::<String>("base").expect("base should be specified");
+                let base_solution = match base_solution_name.as_str() {
+                    "dummy" => get_base_solution(&task, i),
+                    "spread" => get_spread_solution(&task),
+                    _ => panic!("Unknown base solution {base_solution_name}"),
+                };
                 let visibility = score::calc_visibility(&task, &base_solution);
 
                 match score::calc(&task, &base_solution, &visibility) {
                     Ok(points) => {
                         println!(
-                            "Base solution from {BASE_SOLUTIONS_DIR} for task {i} got {points} points"
+                            "{base_solution_name} solution for task {i} got {points} points"
                         );
 
                         let (best_solution, visibility) =
@@ -124,10 +147,40 @@ fn main() {
                     }
                     Err(err) => {
                         println!(
-                            "Base solution from {BASE_SOLUTIONS_DIR} for task {i} is incorrect: {err}"
+                            "{base_solution_name} solution from {BASE_SOLUTIONS_DIR} for task {i} is incorrect: {err}"
                         );
                     }
                 };
+            }
+        }
+        // Some(("spread_optimize", _matches)) => {
+        //     for i in 1..=TASKS_NUM {
+        //         println!("===================================");
+        //         let task = read_task(i);
+        //         let base_solution = get_spread_solution(&task);
+        //         let visibility = score::calc_visibility(&task, &base_solution);
+
+        //         match score::calc(&task, &base_solution, &visibility) {
+        //             Ok(points) => {
+        //                 println!(
+        //                     "Spread solution for task {i} got {points} points"
+        //                 );
+
+        //                 let (best_solution, visibility) =
+        //                     optimize_do_talogo(&task, &base_solution, visibility);
+        //                 match score::calc(&task, &best_solution, &visibility) {
+        //                     Ok(points) => write_optimal_solution(&task, &best_solution, points, i),
+        //                     Err(_) => {
+        //                         println!("Could not find correct solution for task {i}");
+        //                     }
+        //                 }
+        //             }
+        //             Err(err) => {
+        //                 println!(
+        //                     "Spread solution from {BASE_SOLUTIONS_DIR} for task {i} is incorrect: {err}"
+        //                 );
+        //             }
+        //         };
 
                 // {
                 //     let (solution, visibility) = force_greedy_combined(&task, &best_solution);
@@ -193,8 +246,8 @@ fn main() {
                 //         }
                 //     }
                 // }
-            }
-        }
+            // }
+        // }
         _ => unreachable!("clap should ensure we don't get here"),
     };
 }
