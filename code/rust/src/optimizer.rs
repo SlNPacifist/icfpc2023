@@ -76,7 +76,7 @@ fn run_force_based_step(
             task.stage_left() + MUSICIAN_RADIUS,
             task.stage_right() - MUSICIAN_RADIUS,
         );
-        new_position.y = new_position.x.clamp(
+        new_position.y = new_position.y.clamp(
             task.stage_bottom() + MUSICIAN_RADIUS,
             task.stage_top() - MUSICIAN_RADIUS,
         );
