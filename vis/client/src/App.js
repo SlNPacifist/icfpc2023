@@ -60,13 +60,11 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
     radius: 5.0,
   }));
 
-  const pillars = problem.pillars.map(({
-    center,
-    radius,
-  }) => ({
-    x: center[0],
-    y: center[1],
-    radius,
+  const pillars = problem.pillars.map((pillar, index) => ({
+    ...pillar,
+    x: pillar.center[0],
+    y: pillar.center[1],
+    index,
   }));
 
 
@@ -171,7 +169,6 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
       canvasPoints: false,
       hoverAnnotation: true,
       tooltipContent: d => {
-        console.log('tc', d);
         return (
           <div className="App-tooltip-content">
             <p>Index: {d.index}</p>
