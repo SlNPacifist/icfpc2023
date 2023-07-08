@@ -63,6 +63,7 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
     index,
     color: "#d45087",
     radius: 5.0,
+    instrument: problem.musicians[index],
   }));
 
   const pillars = problem.pillars.map((pillar, index) => ({
@@ -213,13 +214,11 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
             <p><b>Score: {getScore(d)}</b></p>
             <p>X: {d.y}</p>
             <p>Y: {d.x}</p>
-            <p>
-              {d.coincidentPoints.length > 1 &&
-                `+${d.coincidentPoints.length - 1} more diamond${(d.coincidentPoints
-                  .length > 2 &&
-                  "s") ||
-                  ""} here`}
-            </p>
+            {d.data.type === 'placement' && (
+              <p>
+                Instrument: {d.instrument}
+              </p>
+            )}
           </div>
         );
       }
