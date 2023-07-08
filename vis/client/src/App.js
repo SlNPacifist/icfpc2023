@@ -42,6 +42,7 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
   const placements = solution.placements.map(p => ({
     ...p,
     color: "#d45087",
+    radius: 10.0,
   }));
 
   const scores = Array.from(Array(attendees.length), () => new Array(placements.length));
@@ -91,9 +92,13 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
       xAccessor: "x",
       yAccessor: "y",
       pointStyle: function(e) { return { fill: e.color, fillOpacity: .9 } },
+      customPointMark: function(e) {
+        // does not work with canvas
+        return ( <g><circle r={Math.max(e.xScale(e.d.radius || 1e-5), 1.0)} fill={e.d.color} /></g> );
+      },
       title: "Diamonds: Carat vs Price",
       axes: [{ orient: "bottom", label: "X" }, { label: "Y", orient: "left" }],
-      canvasPoints: true,
+      canvasPoints: false,
       hoverAnnotation: true,
       tooltipContent: d => {
         return (
