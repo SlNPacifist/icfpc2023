@@ -60,6 +60,9 @@ impl Vector {
     pub fn atan2(self) -> f64 {
         f64::atan2(self.y, self.x)
     }
+    pub fn norm(self) -> f64 {
+        (self.x * self.x + self.y * self.y).sqrt()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
