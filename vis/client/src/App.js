@@ -2,8 +2,8 @@ import './App.css';
 import {useState} from 'react';
 import { XYFrame } from "semiotic";
 
-import defaultProblem from './data/problem-91.json';
-import defaultSolution from './solutions/problem-91.json';
+import defaultProblem from './data/problem-58.json';
+import defaultSolution from './solutions/problem-58.json';
 import ProblemSelector from './components/ProblemSelector.react';
 
 const N = 91;
@@ -59,6 +59,16 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
     radius: 10.0,
   }));
 
+  const pillars = problem.pillars.map(({
+    center,
+    radius,
+  }) => ({
+    x: center[0],
+    y: center[1],
+    radius,
+  }));
+
+
   const scores = Array.from(Array(attendees.length), () => new Array(placements.length));
   const isVisible = Array.from(Array(attendees.length), () => new Array(placements.length));
   for (let i = 0; i < placements.length; i++) {
@@ -84,11 +94,11 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
       isVisible[att[j].index][i] = distPointToSegmentSqr(
         msc[mn % msc.length].x, msc[mn % msc.length].y,
         placements[i].x, placements[i].y,
-        att[j].x, att[j].y, 
+        att[j].x, att[j].y,
       ) >= 25 && distPointToSegmentSqr(
         msc[(m + msc.length) % msc.length].x, msc[(m + msc.length) % msc.length].y,
         placements[i].x, placements[i].y,
-        att[j].x, att[j].y, 
+        att[j].x, att[j].y,
       ) >= 25;
     }
   }
@@ -135,7 +145,7 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
         color: "#ff0000"
       }],
       lineStyle: { stroke: "#ff0000", strokeWidth: 2 },
-      points: [...attendees, ...placements], //[{ y: 326, x: 0.23, size: 55, color: "#ac58e5", clarity: "SI2" }],
+      points: [...attendees, ...placements, ...pillars], //[{ y: 326, x: 0.23, size: 55, color: "#ac58e5", clarity: "SI2" }],
       size: [10000, 10000],
       xAccessor: "x",
       yAccessor: "y",
