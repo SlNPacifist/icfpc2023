@@ -1,5 +1,6 @@
-use crate::optimizer::force_greedy_combined;
 use crate::solution::dummy;
+use crate::{optimizer::force_greedy_combined, score::potential_score};
+use num_format::{Locale, ToFormattedString};
 
 mod genetics;
 mod geom;
@@ -10,6 +11,8 @@ mod solution;
 
 fn main() {
     let base_solutions_dir = "../../solutions-20230708-124428";
+
+    let mut potential_scores: Vec<(i64, usize, i64)> = Vec::new();
 
     for i in 1..=90 {
         let task = io::read(&format!("../../data/problem-{i}.json"));
@@ -39,9 +42,13 @@ fn main() {
                 println!(
                     "Base solution from {base_solutions_dir} for task {i} is incorrect: {err}"
                 );
-                panic!("bad base solution")
+                // panic!("bad base solution")
+                0
             }
         };
+        potential_scores.push((potential_score(&task), i, max_score));
+
+        continue;
 
         {
             let (solution, visibility) = force_greedy_combined(&task, &base_solution);
@@ -111,5 +118,14 @@ fn main() {
         }
 
         // io::write(&format!("../../solutions/problem-{i}.json"), &solution);
+    }
+
+    potential_scores.sort();
+    for (score, index, cur_score) in potential_scores {
+        println!(
+            "Potential score for task {index:2} is {:>15}, cur score is {:>13}",
+            score.to_formatted_string(&Locale::en),
+            cur_score.to_formatted_string(&Locale::en)
+        );
     }
 }

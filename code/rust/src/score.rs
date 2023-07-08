@@ -100,3 +100,65 @@ pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result
             .sum()
     })
 }
+
+pub fn potential_score(task: &Task) -> i64 {
+    let left_bottom = Point {
+        x: task.stage_left(),
+        y: task.stage_bottom(),
+    };
+    let left_top = Point {
+        x: task.stage_left(),
+        y: task.stage_top(),
+    };
+    let right_bottom = Point {
+        x: task.stage_right(),
+        y: task.stage_bottom(),
+    };
+    let right_top = Point {
+        x: task.stage_right(),
+        y: task.stage_top(),
+    };
+    let scene_segments = vec![
+        Segment {
+            from: left_bottom,
+            to: left_top,
+        },
+        Segment {
+            from: left_top,
+            to: right_top,
+        },
+        Segment {
+            from: right_top,
+            to: right_bottom,
+        },
+        Segment {
+            from: right_bottom,
+            to: left_bottom,
+        },
+    ];
+    task.attendees
+        .iter()
+        .map(|attendee| {
+            task.musicians
+                .iter()
+                .map(|&instrument| {
+                    let coord = attendee.coord();
+                    let closest_dist = scene_segments
+                        .iter()
+                        .map(|segment| segment.dist(coord))
+                        .min_by(|a, b| a.partial_cmp(b).unwrap())
+                        .unwrap();
+                    attendee_score(
+                        attendee,
+                        instrument,
+                        Point {
+                            x: coord.x + closest_dist + MUSICIAN_RADIUS,
+                            y: coord.y,
+                        },
+                    )
+                    .max(0)
+                })
+                .sum::<i64>()
+        })
+        .sum::<i64>()
+}
