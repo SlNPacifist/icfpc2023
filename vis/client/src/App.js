@@ -88,13 +88,13 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
       }],
       lineStyle: { stroke: "#ff0000", strokeWidth: 2 },
       points: [...attendees, ...placements], //[{ y: 326, x: 0.23, size: 55, color: "#ac58e5", clarity: "SI2" }],
-      size: [800, 800],
+      size: [10000, 10000],
       xAccessor: "x",
       yAccessor: "y",
       pointStyle: function(e) { return { fill: e.color, fillOpacity: .9 } },
       customPointMark: function(e) {
         // does not work with canvas
-        return ( <g><circle r={Math.max(e.xScale(e.d.radius || 1e-5), 1.0)} fill={e.d.color} /></g> );
+        return ( <g><circle r={e.d.radius ? e.xScale(e.d.radius) : 1} fill={e.d.color} /></g> );
       },
       title: "Diamonds: Carat vs Price",
       axes: [{ orient: "bottom", label: "X" }, { label: "Y", orient: "left" }],
