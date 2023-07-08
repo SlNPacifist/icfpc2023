@@ -48,6 +48,7 @@ function getAngleComparator(p0) {
 const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) => {
   const attendees = problem.attendees.map((at, index) => ({
     ...at,
+    type: 'attendee',
     index,
     color: "#003f5c",
     radius: 2.0,
@@ -55,6 +56,7 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
 
   const placements = solution.placements.map((p, index) => ({
     ...p,
+    type: 'placement',
     index,
     color: "#d45087",
     radius: 5.0,
@@ -62,6 +64,7 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
 
   const pillars = problem.pillars.map((pillar, index) => ({
     ...pillar,
+    type: 'pillar',
     x: pillar.center[0],
     y: pillar.center[1],
     index,
@@ -127,6 +130,23 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
 
   const maxD = Math.max(...attendees.flatMap(({x, y}) => [x, y]));
 
+  const attendeeScores = scores.map((s, idx) => {
+    return s.reduce((p, c) => p + c, 0.0);
+  });
+  const placementScores = Array(attendees.length).fill(0);
+  scores.forEach(s => {
+    s.forEach((score, index) => placementScores[index] += score);
+  })
+
+  const getScore = ({data}) => {
+    if (data.type === 'attendee') {
+      return attendeeScores[data.index];
+    }
+    if (data.type === 'placement') {
+      return placementScores[data.index];
+    }
+  }
+
   return {
     scores,
     isVisible,
@@ -171,7 +191,8 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
       tooltipContent: d => {
         return (
           <div className="App-tooltip-content">
-            <p>Index: {d.index}</p>
+            <p><b>Index: {d.index}</b></p>
+            <p><b>Score: {getScore(d)}</b></p>
             <p>X: {d.y}</p>
             <p>Y: {d.x}</p>
             <p>
