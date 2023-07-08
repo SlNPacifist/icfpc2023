@@ -35,6 +35,12 @@
   position: relative;
 }
 
+.App-tooltip-content {
+  background: #fff;
+  border: 1px solid gray;
+  padding: 5px;
+}
+
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);

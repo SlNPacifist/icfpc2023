@@ -171,10 +171,12 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
       canvasPoints: false,
       hoverAnnotation: true,
       tooltipContent: d => {
+        console.log('tc', d);
         return (
-          <div className="tooltip-content">
-            <p>Price: ${d.y}</p>
-            <p>Caret: {d.x}</p>
+          <div className="App-tooltip-content">
+            <p>Index: {d.index}</p>
+            <p>X: {d.y}</p>
+            <p>Y: {d.x}</p>
             <p>
               {d.coincidentPoints.length > 1 &&
                 `+${d.coincidentPoints.length - 1} more diamond${(d.coincidentPoints
