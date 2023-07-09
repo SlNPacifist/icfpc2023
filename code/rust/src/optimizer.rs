@@ -11,16 +11,17 @@ use std::collections::BinaryHeap;
 
 use crate::solution::recalc_volumes;
 use rand::distributions::{Distribution, Uniform};
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256PlusPlus;
 
 static OPTIMIZERS: [(
     fn(&Task, &Solution, &Visibility) -> (Solution, Visibility),
     &'static str,
-); 3] = [
+); 4] = [
     (default_force_based_optimizer, "Force based"),
     (big_step_force_based_optimizer, "Force based with big steps"),
     (optimize_placements_greedy, "Greedy placement"),
+    (random_swap_positions, "Random swap positions"),
 ];
 
 pub fn optimize_placements_greedy(
@@ -355,6 +356,33 @@ pub fn optimize_single_musicians(
                 optimized = true;
             }
         }
+    }
+
+    let visibility = calc_visibility_fast(task, &solution);
+    (solution, visibility)
+}
+
+pub fn random_swap_positions(
+    task: &Task,
+    initial_solution: &Solution,
+    _visibility: &Visibility,
+) -> (Solution, Visibility) {
+    // TODO lift me to do_talogo
+    let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
+
+    let mut solution = initial_solution.clone();
+
+    let swap_count = task.musicians.len() / 20;
+    let swap_count = swap_count.max(1);
+    for _ in 0..swap_count {
+        let from = rng.gen_range(0..task.musicians.len());
+        let to = rng.gen_range(0..task.musicians.len());
+        if from == to {
+            continue;
+        }
+
+        solution.placements.swap(from, to);
+        solution.volumes.swap(from, to);
     }
 
     let visibility = calc_visibility_fast(task, &solution);
