@@ -162,6 +162,7 @@ fn main() {
                     "dummy" => get_base_solution(&task, i),
                     "spread" => get_spread_solution(&task),
                     "optimal" => get_optimal_solution(&task, i),
+                    "manual" => get_manual_solution(&task, i),
                     _ => panic!("Unknown base solution {base_solution_name}"),
                 };
                 let visibility = score::calc_visibility(&task, &base_solution);
