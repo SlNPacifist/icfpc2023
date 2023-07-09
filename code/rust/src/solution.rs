@@ -144,16 +144,18 @@ const MIN_VOLUME: f64 = 0.0;
 const MAX_VOLUME: f64 = 10.0;
 
 pub fn recalc_volumes(task: &Task, solution: &mut Solution, visibility: &Visibility) {
-    solution.volumes = solution.placements.iter().enumerate()
+    solution.volumes = solution
+        .placements
+        .iter()
+        .enumerate()
         .map(|(mus_idx, mus_pos)| {
-            let attendee_sum: i64 = task.attendees.iter().enumerate()
+            let attendee_sum: i64 = task
+                .attendees
+                .iter()
+                .enumerate()
                 .filter(|(att_idx, _)| visibility.is_visible(*att_idx, mus_idx))
                 .map(|(_, att)| {
-                    score::attendee_score_without_q(
-                        att,
-                        task.musicians[mus_idx],
-                        *mus_pos,
-                    )
+                    score::attendee_score_without_q(att, task.musicians[mus_idx], *mus_pos)
                 })
                 .sum();
 

@@ -1,13 +1,13 @@
 #[macro_use]
 extern crate rouille;
 
+use crate::io::default_volumes_task;
 use crate::score::potential_score;
 use crate::solution::{dummy, recalc_volumes};
 use clap::{self, arg, value_parser};
 use io::{Solution, Task};
 use num_format::{Locale, ToFormattedString};
 use optimizer::optimize_do_talogo;
-use crate::io::default_volumes_task;
 
 mod genetics;
 mod geom;
@@ -92,11 +92,13 @@ fn main() {
         .bin_name("rust")
         .subcommand_required(true)
         .subcommand(
-            clap::command!("optimize").arg(
-                arg!([base])
-                    .value_parser(value_parser!(String))
-                    .default_value("dummy"),
-            ),
+            clap::command!("optimize")
+                .arg(
+                    arg!([base])
+                        .value_parser(value_parser!(String))
+                        .default_value("dummy"),
+                )
+                .arg(arg!([id]).value_parser(value_parser!(usize))),
         )
         .subcommand(clap::command!("potential"))
         .subcommand(clap::command!("server"))
@@ -127,15 +129,21 @@ fn main() {
         }
 
         Some(("optimize", matches)) => {
-            for i in 1..=TASKS_NUM {
+            let base_solution_name = matches
+                .get_one::<String>("base")
+                .expect("base should be specified");
+            let id = matches.get_one::<usize>("id");
+            let range = match id {
+                Some(&id) => id..=id,
+                None => 1..=TASKS_NUM,
+            };
+            for i in range {
                 println!("===================================");
                 let task = read_task(i);
-                let base_solution_name = matches
-                    .get_one::<String>("base")
-                    .expect("base should be specified");
                 let base_solution = match base_solution_name.as_str() {
                     "dummy" => get_base_solution(&task, i),
                     "spread" => get_spread_solution(&task),
+                    "optimal" => get_optimal_solution(&task, i),
                     _ => panic!("Unknown base solution {base_solution_name}"),
                 };
                 let visibility = score::calc_visibility(&task, &base_solution);
@@ -162,7 +170,7 @@ fn main() {
             }
         }
 
-        Some(("make-ortools-input", matches)) => {
+        Some(("make-ortools-input", _matches)) => {
             #[derive(serde::Serialize)]
             struct OrToolsInput {
                 positions: Vec<geom::Point>,
@@ -205,7 +213,7 @@ fn main() {
             }
         }
 
-        Some(("apply-ortools-output", matches)) => {
+        Some(("apply-ortools-output", _matches)) => {
             for i in 1..=TASKS_NUM {
                 let task = read_task(i);
 
@@ -234,7 +242,7 @@ fn main() {
             }
         }
 
-        Some(("recalc-volumes", matches)) => {
+        Some(("recalc-volumes", _matches)) => {
             for i in 1..=TASKS_NUM {
                 let task = read_task(i);
                 let mut solution = get_optimal_solution(&task, i);

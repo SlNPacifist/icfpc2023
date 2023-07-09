@@ -1,8 +1,8 @@
 use crate::geom::Point;
 use crate::io::{default_volumes_task, Solution, Task};
 use crate::score::{calc, calc_visibility, Visibility};
-use genevo::{operator::prelude::*, population::*, prelude::*};
 use crate::solution::recalc_volumes;
+use genevo::{operator::prelude::*, population::*, prelude::*};
 
 type Genome = Vec<f64>;
 

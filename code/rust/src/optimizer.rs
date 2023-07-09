@@ -6,21 +6,22 @@ use crate::{
     io::{Solution, Task},
     score::{attendee_score_without_q, Visibility},
 };
-use std::collections::BinaryHeap;
 use itertools::Itertools;
+use std::collections::BinaryHeap;
 
-use rand::SeedableRng;
-use rand::distributions::{Distribution, Uniform};
-use rand_xoshiro::Xoshiro256PlusPlus;
 use crate::solution::recalc_volumes;
+use rand::distributions::{Distribution, Uniform};
+use rand::SeedableRng;
+use rand_xoshiro::Xoshiro256PlusPlus;
 
 static OPTIMIZERS: [(
     fn(&Task, &Solution, &Visibility) -> (Solution, Visibility),
     &'static str,
-); 3] = [
+); 4] = [
     (default_force_based_optimizer, "Force based"),
     (optimize_placements_greedy, "Greedy placement"),
     (genetics::optimize_placements, "Genetic"),
+    (optimize_single_musicians, "Single musician"),
 ];
 
 pub fn optimize_placements_greedy(
@@ -106,21 +107,31 @@ fn run_force_based_step(
 
     use rand::prelude::SliceRandom;
 
-    let mut forces = start_solution.placements.iter().enumerate()
+    let mut forces = start_solution
+        .placements
+        .iter()
+        .enumerate()
         .map(|(pos_index, old_position)| {
-            (pos_index, force_collector(task, start_solution, visibility, pos_index, *old_position))
+            (
+                pos_index,
+                force_collector(task, start_solution, visibility, pos_index, *old_position),
+            )
         })
         .collect::<Vec<_>>();
 
-    let max_norm = forces.iter().map(|(_, f)| f.norm()).max_by(|a, b| {
-        a.partial_cmp(b).unwrap()
-    }).unwrap();
+    let max_norm = forces
+        .iter()
+        .map(|(_, f)| f.norm())
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
 
     forces.shuffle(rng);
 
     // println!("max force norm: {max_norm}");
 
-    forces.into_iter().map(|(i, f)| (i, f * (1.0/max_norm)))
+    forces
+        .into_iter()
+        .map(|(i, f)| (i, f * (1.0 / max_norm)))
         .for_each(|(pos_index, force)| {
             let force = force * power_multiplier;
             let cur_position = new_positions.placements[pos_index];
@@ -142,7 +153,9 @@ fn run_force_based_step(
                 .iter()
                 .enumerate()
                 .filter(|(i, _)| *i != pos_index)
-                .any(|(_, other_new_pos)| new_position.dist_sqr(*other_new_pos) < MUSICIAN_RADIUS_SQR)
+                .any(|(_, other_new_pos)| {
+                    new_position.dist_sqr(*other_new_pos) < MUSICIAN_RADIUS_SQR
+                })
             {
                 return;
             }
@@ -281,6 +294,49 @@ pub fn default_force_based_optimizer(
     force_based_optimizer(task, initial_solution, visibility, Default::default())
 }
 
+const DX: [f64; 4] = [MUSICIAN_RADIUS, 0.0, -MUSICIAN_RADIUS, 0.0];
+const DY: [f64; 4] = [0.0, MUSICIAN_RADIUS, 0.0, -MUSICIAN_RADIUS];
+pub fn optimize_single_musicians(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+) -> (Solution, Visibility) {
+    let mut solution = initial_solution.clone();
+    let mut best_score = calc(task, &solution, &visibility).unwrap_or(1000000000000i64);
+
+    let mut optimized = true;
+    while optimized {
+        optimized = false;
+        let mut best_res = None;
+        for i in 0..solution.placements.len() {
+            let org = solution.placements[i];
+            for (dx, dy) in DX.iter().zip(DY.iter()) {
+                solution.placements[i].x += dx;
+                solution.placements[i].y += dy;
+                let visibility = calc_visibility_fast(task, &solution);
+                let score = calc(task, &solution, &visibility).unwrap_or(1000000000000i64);
+                let cur_best_score = best_res
+                    .map(|(score, _, _)| score)
+                    .unwrap_or(-1000000000000i64);
+                if score > best_score && score > cur_best_score {
+                    best_res = Some((score, dx, dy));
+                }
+                solution.placements[i] = org;
+            }
+
+            if let Some((score, dx, dy)) = best_res {
+                solution.placements[i].x += dx;
+                solution.placements[i].y += dy;
+                best_score = score;
+                optimized = true;
+            }
+        }
+    }
+
+    let visibility = calc_visibility_fast(task, &solution);
+    (solution, visibility)
+}
+
 pub fn optimize_do_talogo(
     task: &Task,
     initial_solution: &Solution,
@@ -329,7 +385,10 @@ pub fn optimize_do_talogo(
 
             match score::calc(&task, &try_solution, &try_visibility) {
                 Ok(points) => {
-                    println!("Chain {} got {points} points", chain_names.iter().join(" -> "));
+                    println!(
+                        "Chain {} got {points} points",
+                        chain_names.iter().join(" -> ")
+                    );
                     if points > max_score {
                         max_score = points;
                         best_solution = try_solution;
