@@ -279,7 +279,7 @@ pub fn force_based_optimizer(
         }
 
         // moving out of the way from crossing
-        {
+        if false {
             let force_collector = |task: &Task,
                                    start_solution: &Solution,
                                    visibility: &Visibility,
