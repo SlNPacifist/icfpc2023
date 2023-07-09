@@ -12,7 +12,7 @@ static OPTIMIZERS: [(
     fn(&Task, &Solution, &Visibility) -> (Solution, Visibility),
     &'static str,
 ); 3] = [
-    (force_based_optimizer, "Force based"),
+    (default_force_based_optimizer, "Force based"),
     (optimize_placements_greedy, "Greedy placement"),
     (genetics::optimize_placements, "Genetic"),
 ];
@@ -59,14 +59,33 @@ pub fn optimize_placements_greedy(
 }
 
 // TODO schedule
-const OPTIMIZING_FORCE_MULTIPLIER: f64 = 1e-7;
-const RELAXING_FORCE_MULTIPLIER: f64 = OPTIMIZING_FORCE_MULTIPLIER / 2.0;
-// const RELAXING_FORCE_MULTIPLIER: f64 = 0.0;
 const RELAXING_FORCE_BASE: f64 = 1e7;
-// const STEPS: usize = 1000;
-const STEPS: usize = 5;
 
 const MUSICIAN_RADIUS_SQR: f64 = MUSICIAN_RADIUS * MUSICIAN_RADIUS;
+
+pub struct ForceParams {
+    steps: usize,
+    refresh_visibility_rate: usize,
+
+    optimizing_force_multiplier: f64,
+    optimizing_force_decay: f64,
+    relaxing_force_multiplier: f64,
+    relaxing_force_decay: f64,
+}
+
+impl Default for ForceParams {
+    fn default() -> Self {
+        ForceParams {
+            steps: 5,
+            refresh_visibility_rate: 5,
+
+            optimizing_force_multiplier: 1e-7,
+            optimizing_force_decay: 0.999,
+            relaxing_force_multiplier: 1e-7 / 2.0,
+            relaxing_force_decay: 0.999,
+        }
+    }
+}
 
 fn run_force_based_step(
     task: &Task,
@@ -114,13 +133,15 @@ pub fn force_based_optimizer(
     task: &Task,
     initial_solution: &Solution,
     visibility: &Visibility,
+    params: ForceParams,
 ) -> (Solution, Visibility) {
     let mut result = initial_solution.clone();
 
-    let mut optimizing_force_sched_multiplier = OPTIMIZING_FORCE_MULTIPLIER;
-    let mut relaxing_force_sched_multiplier = RELAXING_FORCE_MULTIPLIER;
+    let mut optimizing_force_sched_multiplier = params.optimizing_force_multiplier;
+    let mut relaxing_force_sched_multiplier = params.relaxing_force_multiplier;
 
-    for _ in 0..STEPS {
+    let mut visibility = visibility.clone();
+    for step in 0..params.steps {
         // optimizing phase
         {
             let force_collector = |task: &Task,
@@ -182,13 +203,24 @@ pub fn force_based_optimizer(
             );
         }
 
-        // TODO proper schedule
-        optimizing_force_sched_multiplier *= 0.999;
-        relaxing_force_sched_multiplier *= 0.999;
+        optimizing_force_sched_multiplier *= params.optimizing_force_decay;
+        relaxing_force_sched_multiplier *= params.relaxing_force_decay;
+
+        if (step + 1) % params.refresh_visibility_rate == 0 {
+            visibility = calc_visibility_fast(&task, &result);
+        }
     }
 
-    let visibility = calc_visibility(&task, &result);
+    visibility = calc_visibility_fast(&task, &result);
     (result, visibility)
+}
+
+pub fn default_force_based_optimizer(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+) -> (Solution, Visibility) {
+    force_based_optimizer(task, initial_solution, visibility, Default::default())
 }
 
 pub fn optimize_do_talogo(
