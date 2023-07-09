@@ -284,9 +284,19 @@ function App() {
   }, [solution]);
 
   const {frameProps} = (problem && solution && score && getFrameProps({problem, solution, score})) || {};
-  const toggleHoverLayer = () => {
+  const toggleHoverLayer = useCallback((e) => {
+    if (e.key && !['t', 'T'].includes(e.key)) {
+      return;
+    }
     document.body.classList.toggle('hiddenHoverLayer');
-  }
+  });
+
+  useEffect(() => {
+    window.addEventListener('keydown', toggleHoverLayer, true);
+    return () => {
+      window.removeEventListener('keydown', toggleHoverLayer, true);
+    }
+  });
 
   return (
     <>
@@ -306,7 +316,7 @@ function App() {
       </div>
       {score && <div>Total: {score.score}</div>}
       <div className="App-global-menu">
-        <button onClick={toggleHoverLayer}>Toggle hover layer</button>
+        <button onClick={toggleHoverLayer}>Toggle hover layer (press t)</button>
         <div className="App-selector">
           <ProblemSelector N={N} onChange={onChange} />
         </div>
