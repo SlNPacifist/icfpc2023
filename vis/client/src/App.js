@@ -237,6 +237,15 @@ function App() {
     dragX.current = 0;
     dragY.current = 0;
   }, []);
+  const updateSolution = (solution) => {
+    const newSolution = {...solution};
+
+    fetchScore(problemId, newSolution)
+      .then((score) => {
+        setSolution({...solution});
+        setScore(score);
+      });
+  }
   const drag = useCallback((element, event) => {
     const [prevX, prevY] = dragStartCoords.current;
     const [translateX, translateY] = element.parentElement.attributes.transform.value.match(/([\d.]+),([\d.]+)/g)[0]
@@ -257,13 +266,7 @@ function App() {
     const shiftY = (dragY.current) / xScale;
     solution.placements[index].x += shiftX;
     solution.placements[index].y -= shiftY;
-    const newSolution = {...solution};
-
-    fetchScore(problemId, newSolution)
-      .then((score) => {
-        setSolution({...solution});
-        setScore(score);
-      });
+    updateSolution({...solution});
     dragStartCoords.current = null;
   }, [solution]);
 
@@ -300,6 +303,16 @@ function App() {
     }
   });
 
+  const onSwapClick = () => {
+    const node1 = parseInt(document.querySelector('#placement-node-1').value, 10);
+    const node2 = parseInt(document.querySelector('#placement-node-2').value, 10);
+    const p1 = solution.placements[node1];
+    const p2 = solution.placements[node2];
+    solution.placements[node1] = p2;
+    solution.placements[node2] = p1;
+    updateSolution({...solution});
+  }
+
   return (
     <>
       <div className="App">
@@ -323,6 +336,12 @@ function App() {
           <ProblemSelector N={N} onChange={onChange} />
         </div>
         <p>CurrentScore: {score && score.score.toLocaleString()}</p>
+        <p>
+          Swap nodes:
+            <input id="placement-node-1" type="number" />
+            <input id="placement-node-2" type="number" />
+            <button onClick={onSwapClick}>ok</button>
+        </p>
       </div>
     </>
   );
