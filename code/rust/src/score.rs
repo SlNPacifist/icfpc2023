@@ -138,7 +138,7 @@ pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result
                 visibility
                     .for_attendee(attendee_index)
                     .map(|index| {
-                        let mut score = attendee_score_without_q(
+                        let score = attendee_score_without_q(
                             a,
                             task.musicians[index],
                             solution.placements[index],
@@ -177,11 +177,14 @@ pub fn calc_ex(task: &Task, solution: &Solution, visibility: &Visibility) -> Sco
                     visibility
                         .for_attendee(attendee_index)
                         .map(|index| {
-                            let mut score = attendee_score_without_q(
+                            let score = attendee_score_without_q(
                                 a,
                                 task.musicians[index],
                                 solution.placements[index],
                             );
+
+                            // Volumes should be allowed even on lightning tasks
+                            let mut score = (score as f64) * solution.volumes[index];
 
                             // Aymeric Fromherz — Вчера, в 23:01
                             // ...you can also see it as active if and only if pillars is not empty in the problem description.
@@ -189,8 +192,10 @@ pub fn calc_ex(task: &Task, solution: &Solution, visibility: &Visibility) -> Sco
                             if !task.pillars.is_empty() {
                                 // Aymeric Fromherz — Вчера, в 18:55
                                 // It is implemented as calling ceil when computing I_i(k), and ceil again after multiplying with q(k), as indicated in the spec.
-                                score = ((score as f64) * musician2q[index]).ceil() as i64;
+                                score *= musician2q[index];
                             }
+
+                            let score = score.ceil() as i64;
 
                             attendee[attendee_index] += score;
                             musician[index] += score;
