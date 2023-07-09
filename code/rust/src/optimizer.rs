@@ -586,8 +586,6 @@ pub fn optimize_border(
         }
     }
 
-    println!("Valid points are {:?}", valid_dist_points);
-
     let mut min_score_by_instrument = vec![None; task.instruments_len()];
     let score = calc_ex(task, initial_solution, &visibility);
     for i in 0..score.musician.len() {
@@ -605,13 +603,11 @@ pub fn optimize_border(
     }
 
     let musicians: Vec<usize> = min_score_by_instrument.iter().flat_map(|o| o.map(|(_, idx)| vec![idx]).unwrap_or(vec![])).collect();
-    println!("Valid musicians are {:?}", musicians);
 
     let mut best_change = None;
     let mut solution = initial_solution.clone();
 
     if valid_dist_points.len() < 10 && musicians.len() > 30 {
-        println!("Skipping border optimization");
         return (initial_solution.clone(), visibility);
     }
 
@@ -622,7 +618,6 @@ pub fn optimize_border(
             let visibility = calc_visibility_fast(task, &solution);
             let cur_score = calc(task, &solution, &visibility).expect("Border optimizer generated incorrect solution");
             let best_score = best_change.map(|(score, _, _)| score).unwrap_or(score.score);
-            println!("Moving musician {musician_idx} from {org_point:?} to {point:?}, score delta is {}", cur_score - best_score);
             if cur_score > best_score {
                 best_change = Some((cur_score, musician_idx, point));
             }
