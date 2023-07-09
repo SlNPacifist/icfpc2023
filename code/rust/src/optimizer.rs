@@ -20,6 +20,7 @@ type OptimizerSlice = [(Optimizer,&'static str)];
 const ALL_OPTIMIZERS: &OptimizerSlice = &[
     (default_force_based_optimizer, "Force based"),
     (big_step_force_based_optimizer, "Force based with big steps"),
+    (big_gap_force_based_optimizer, "Force based with big gaps"),
     (optimize_placements_greedy_opt, "Greedy placement"),
     (random_swap_positions, "Random swap positions"),
     (optimize_border, "Optimize border"),
@@ -28,6 +29,7 @@ const ALL_OPTIMIZERS: &OptimizerSlice = &[
 const SAFE_OPTIMIZERS: &OptimizerSlice = &[
     (default_force_based_optimizer, "Force based"),
     (big_step_force_based_optimizer, "Force based with big steps"),
+    (big_gap_force_based_optimizer, "Force based with big gaps"),
     (optimize_placements_greedy_opt, "Greedy placement"),
     (optimize_border, "Optimize border"),
 ];
@@ -92,6 +94,8 @@ pub struct ForceParams {
     optimizing_force_decay: f64,
     relaxing_force_multiplier: f64,
     relaxing_force_decay: f64,
+
+    force_gap_size: f64,
 }
 
 impl Default for ForceParams {
@@ -106,11 +110,11 @@ impl Default for ForceParams {
             optimizing_force_decay: 0.999,
             relaxing_force_multiplier: 0.5,
             relaxing_force_decay: 0.999,
+
+            force_gap_size: 0.0,
         }
     }
 }
-
-const FORCE_GAP_SIZE: f64 = 0.0;
 
 fn is_position_possible(solution: &Solution, pos_index: usize, new_position: Point, dist_sqr: f64) -> bool {
     solution
@@ -127,11 +131,12 @@ fn run_force_based_step(
     task: &Task,
     start_solution: &Solution,
     visibility: &Visibility,
-    mut force_collector: impl FnMut(&Task, &Solution, &Visibility, usize, Point) -> Vector,
+    mut force_collector: impl FnMut(&Task, &Solution, &Visibility, usize, Point, &mut Xoshiro256PlusPlus) -> Vector,
     power_multiplier: f64,
-    rng: &mut impl rand::Rng,
+    force_gap_size: f64,
+    rng: &mut Xoshiro256PlusPlus,
 ) -> Solution {
-    let musician_dist_gap_sqr: f64 = (MUSICIAN_RADIUS + FORCE_GAP_SIZE) * (MUSICIAN_RADIUS + FORCE_GAP_SIZE);
+    let musician_dist_gap_sqr: f64 = (MUSICIAN_RADIUS + force_gap_size) * (MUSICIAN_RADIUS + force_gap_size);
 
     let mut new_positions = start_solution.clone();
 
@@ -144,7 +149,7 @@ fn run_force_based_step(
         .map(|(pos_index, old_position)| {
             (
                 pos_index,
-                force_collector(task, start_solution, visibility, pos_index, *old_position),
+                force_collector(task, start_solution, visibility, pos_index, *old_position, rng),
             )
         })
         .collect::<Vec<_>>();
@@ -213,7 +218,8 @@ pub fn force_based_optimizer(
                                    _start_solution: &Solution,
                                    _visibility: &Visibility,
                                    _pos_index: usize,
-                                   _old_position: Point| {
+                                   _old_position: Point,
+                                   rng: &mut Xoshiro256PlusPlus| {
                 let angle = angle_distr.sample(&mut rng_angles);
 
                 Vector {
@@ -228,6 +234,7 @@ pub fn force_based_optimizer(
                 &visibility,
                 force_collector,
                 random_walk_sched_multiplier,
+                params.force_gap_size,
                 rng,
             );
         }
@@ -238,19 +245,24 @@ pub fn force_based_optimizer(
                                    _start_solution: &Solution,
                                    visibility: &Visibility,
                                    pos_index: usize,
-                                   old_position: Point| {
+                                   old_position: Point,
+                                   rng: &mut Xoshiro256PlusPlus| {
                 task.attendees
                     .iter()
                     .enumerate()
+                    // todo too slow w/o filter?
                     .filter(|(index, _)| visibility.is_visible(*index, pos_index))
-                    .map(|(_, attendee)| {
+                    .map(|(att_idx, attendee)| {
+                        let visible = visibility.is_visible(att_idx, pos_index);
+                        let visible_k = if visible { 1.0 } else { 0.1 };
+
                         let instrument = task.musicians[pos_index];
                         let force = attendee_score_without_q(
                             attendee,
                             instrument,
                             result.placements[pos_index],
                         ) as f64;
-                        (attendee.coord() - old_position) * force
+                        (attendee.coord() - old_position) * force * visible_k
                     })
                     .sum::<Vector>()
             };
@@ -261,6 +273,7 @@ pub fn force_based_optimizer(
                 &visibility,
                 force_collector,
                 optimizing_force_sched_multiplier,
+                params.force_gap_size,
                 rng,
             );
         }
@@ -271,10 +284,21 @@ pub fn force_based_optimizer(
                                    start_solution: &Solution,
                                    visibility: &Visibility,
                                    pos_index: usize,
-                                   old_position: Point| {
-                task.attendees.iter().enumerate()
+                                   old_position: Point,
+                                   rng: &mut Xoshiro256PlusPlus| {
+                const MAX_ATTENDEES: usize = 20;
+                const MAX_SOURCE_MUSICIANS: usize = 20;
+
+                let att_indices = rand::seq::index::sample(rng, task.attendees.len(), task.attendees.len().min(MAX_ATTENDEES));
+                let mus_indices = rand::seq::index::sample(rng, task.musicians.len(), task.musicians.len().min(MAX_SOURCE_MUSICIANS));
+
+                att_indices
+                    .into_iter()
+                    .map(|att_idx| (att_idx, &task.attendees[att_idx]))
                     .map(|(att_idx, att)| {
-                        task.musicians.iter().zip(start_solution.placements.iter()).enumerate()
+                        mus_indices
+                            .iter()
+                            .map(|source_m_idx| (source_m_idx, (&task.musicians[source_m_idx], &start_solution.placements[source_m_idx])))
                             .filter(|(source_m_idx, _)| !visibility.is_visible(att_idx, *source_m_idx))
                             .filter(|(_, (instr, _))| {
                                 att.tastes[**instr] > 0.0
@@ -313,6 +337,7 @@ pub fn force_based_optimizer(
                 &visibility,
                 force_collector,
                 optimizing_force_sched_multiplier,
+                params.force_gap_size,
                 rng,
             );
         }
@@ -323,7 +348,8 @@ pub fn force_based_optimizer(
                                    start_solution: &Solution,
                                    _visibility: &Visibility,
                                    pos_index: usize,
-                                   old_position: Point| {
+                                   old_position: Point,
+                                   rng: &mut Xoshiro256PlusPlus| {
                 start_solution
                     .placements
                     .iter()
@@ -342,6 +368,7 @@ pub fn force_based_optimizer(
                 &visibility,
                 force_collector,
                 relaxing_force_sched_multiplier,
+                params.force_gap_size,
                 rng,
             );
         }
@@ -384,8 +411,23 @@ pub fn big_step_force_based_optimizer(
         optimizing_force_decay: 0.99,
         relaxing_force_multiplier: 2.0,
         relaxing_force_decay: 0.95,
+
+        force_gap_size: 0.0,
     },
     rng)
+}
+
+pub fn big_gap_force_based_optimizer(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+    rng: &mut Xoshiro256PlusPlus,
+) -> (Solution, Visibility) {
+    force_based_optimizer(task, initial_solution, visibility, ForceParams {
+        force_gap_size: 3.0*MUSICIAN_RADIUS,
+        ..Default::default()
+    },
+                          rng)
 }
 
 pub fn optimize_single_musicians(
@@ -634,6 +676,8 @@ pub fn optimize_do_talogo(
                             break (optimize, name);
                         }
                     };
+
+                    // println!("Trying {name}");
 
                     try_solution.volumes = default_volumes_task(task);
                     let (mut solution, visibility) = optimize(&task, &try_solution, &try_visibility, &mut rng);
