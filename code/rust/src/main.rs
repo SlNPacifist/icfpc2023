@@ -120,8 +120,14 @@ fn main() {
         )
         .subcommand(clap::command!("potential"))
         .subcommand(clap::command!("server"))
-        .subcommand(clap::command!("make-ortools-input"))
-        .subcommand(clap::command!("apply-ortools-output"))
+        .subcommand(
+            clap::command!("make-ortools-input")
+                .arg(arg!([id]).value_parser(value_parser!(usize))),
+        )
+        .subcommand(
+            clap::command!("apply-ortools-output")
+                .arg(arg!([id]).value_parser(value_parser!(usize))),
+        )
         .subcommand(clap::command!("recalc-volumes"));
     let matches = cmd.get_matches();
     match matches.subcommand() {
@@ -189,7 +195,7 @@ fn main() {
             }
         }
 
-        Some(("make-ortools-input", _matches)) => {
+        Some(("make-ortools-input", matches)) => {
             #[derive(serde::Serialize)]
             struct OrToolsInput {
                 positions: Vec<geom::Point>,
@@ -197,10 +203,16 @@ fn main() {
                 matrix: Vec<Vec<i64>>,
             }
 
+            let id = matches.get_one::<usize>("id");
+            let range = match id {
+                Some(&id) => id..=id,
+                None => 1..=TASKS_NUM,
+            };
+
             // TODO add cli arg
             let use_volume = true;
 
-            for i in 1..=TASKS_NUM {
+            for i in range {
                 let task = read_task(i);
                 let solution = get_optimal_solution(&task, i);
                 let visibility = score::calc_visibility_fast(&task, &solution);
@@ -237,8 +249,14 @@ fn main() {
             }
         }
 
-        Some(("apply-ortools-output", _matches)) => {
-            for i in 1..=TASKS_NUM {
+        Some(("apply-ortools-output", matches)) => {
+            let id = matches.get_one::<usize>("id");
+            let range = match id {
+                Some(&id) => id..=id,
+                None => 1..=TASKS_NUM,
+            };
+
+            for i in range {
                 let task = read_task(i);
 
                 let output: Vec<geom::Point> = {

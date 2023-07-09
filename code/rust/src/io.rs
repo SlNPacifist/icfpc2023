@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 
 pub const MUSICIAN_RADIUS: f64 = 10.0;
+pub const MUSICIAN_RADIUS_SQR: f64 = MUSICIAN_RADIUS * MUSICIAN_RADIUS;
 pub const MUSICIAN_BLOCK_RADIUS: f64 = 5.0;
 pub const SCORE_CONST: f64 = 1000000.0;
 

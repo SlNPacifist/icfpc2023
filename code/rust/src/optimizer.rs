@@ -1,6 +1,6 @@
 use crate::genetics;
-use crate::geom::{Point, Vector};
-use crate::io::{default_volumes_task, MUSICIAN_RADIUS};
+use crate::geom::{Point, Segment, Vector};
+use crate::io::{default_volumes_task, MUSICIAN_BLOCK_RADIUS, MUSICIAN_RADIUS, MUSICIAN_RADIUS_SQR};
 use crate::score::{self, calc, calc_visibility, calc_visibility_fast};
 use crate::{
     io::{Solution, Task},
@@ -14,15 +14,31 @@ use rand::distributions::{Distribution, Uniform};
 use rand::{Rng, SeedableRng};
 use rand_xoshiro::Xoshiro256PlusPlus;
 
-static OPTIMIZERS: [(
-    fn(&Task, &Solution, &Visibility) -> (Solution, Visibility),
-    &'static str,
-); 4] = [
+type Optimizer = fn(&Task, &Solution, &Visibility, &mut Xoshiro256PlusPlus) -> (Solution, Visibility);
+type OptimizerSlice = [(Optimizer,&'static str)];
+
+const ALL_OPTIMIZERS: &OptimizerSlice = &[
     (default_force_based_optimizer, "Force based"),
     (big_step_force_based_optimizer, "Force based with big steps"),
-    (optimize_placements_greedy, "Greedy placement"),
+    (optimize_placements_greedy_opt, "Greedy placement"),
     (random_swap_positions, "Random swap positions"),
+    (random_change_positions, "Random move positions"),
 ];
+
+const SAFE_OPTIMIZERS: &OptimizerSlice = &[
+    (default_force_based_optimizer, "Force based"),
+    (big_step_force_based_optimizer, "Force based with big steps"),
+    (optimize_placements_greedy_opt, "Greedy placement"),
+];
+
+fn optimize_placements_greedy_opt(
+    task: &Task,
+    solution: &Solution,
+    visibility: &Visibility,
+    _rng: &mut Xoshiro256PlusPlus,
+) -> (Solution, Visibility) {
+    optimize_placements_greedy(task, solution, visibility)
+}
 
 pub fn optimize_placements_greedy(
     task: &Task,
@@ -95,6 +111,17 @@ impl Default for ForceParams {
 
 const FORCE_GAP_SIZE: f64 = 0.0;
 
+fn is_position_possible(solution: &Solution, pos_index: usize, new_position: Point, dist_sqr: f64) -> bool {
+    solution
+        .placements
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| *i != pos_index)
+        .all(|(_, other_new_pos)| {
+            new_position.dist_sqr(*other_new_pos) >= dist_sqr
+        })
+}
+
 fn run_force_based_step(
     task: &Task,
     start_solution: &Solution,
@@ -150,15 +177,7 @@ fn run_force_based_step(
                 task.stage_top() - MUSICIAN_RADIUS,
             );
 
-            if new_positions
-                .placements
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| *i != pos_index)
-                .any(|(_, other_new_pos)| {
-                    new_position.dist_sqr(*other_new_pos) < musician_dist_gap_sqr
-                })
-            {
+            if !is_position_possible(&new_positions, pos_index, new_position, musician_dist_gap_sqr) {
                 return;
             }
 
@@ -173,9 +192,8 @@ pub fn force_based_optimizer(
     initial_solution: &Solution,
     visibility: &Visibility,
     params: ForceParams,
+    rng: &mut Xoshiro256PlusPlus,
 ) -> (Solution, Visibility) {
-    let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
-
     // to avoid double borrowing
     let mut rng_angles = Xoshiro256PlusPlus::seed_from_u64(42);
     let angle_distr = Uniform::from(0.0..std::f64::consts::TAU);
@@ -209,7 +227,7 @@ pub fn force_based_optimizer(
                 &visibility,
                 force_collector,
                 random_walk_sched_multiplier,
-                &mut rng,
+                rng,
             );
         }
 
@@ -242,7 +260,59 @@ pub fn force_based_optimizer(
                 &visibility,
                 force_collector,
                 optimizing_force_sched_multiplier,
-                &mut rng,
+                rng,
+            );
+        }
+
+        // moving out of the way from crossing
+        {
+            let force_collector = |task: &Task,
+                                   start_solution: &Solution,
+                                   visibility: &Visibility,
+                                   pos_index: usize,
+                                   old_position: Point| {
+                task.attendees.iter().enumerate()
+                    .map(|(att_idx, att)| {
+                        task.musicians.iter().zip(start_solution.placements.iter()).enumerate()
+                            .filter(|(source_m_idx, _)| !visibility.is_visible(att_idx, *source_m_idx))
+                            .filter(|(_, (instr, _))| {
+                                att.tastes[**instr] > 0.0
+                            })
+                            .filter(|(_, (_, source_pos))| {
+                                let seg_source_att = Segment {
+                                    from: **source_pos,
+                                    to: att.coord()
+                                };
+                                seg_source_att.dist(old_position) < MUSICIAN_BLOCK_RADIUS
+                            })
+                            .map(|(_, (_, source_pos))| {
+                                let v_source_att = att.coord() - *source_pos;
+                                let a_source_att = v_source_att.atan2();
+                                let v_source_me = old_position - *source_pos;
+                                let a_source_me = v_source_me.atan2();
+                                let a_force = if a_source_att > a_source_me {
+                                    a_source_att - std::f64::consts::FRAC_PI_2
+                                } else {
+                                    a_source_att + std::f64::consts::FRAC_PI_2
+                                };
+
+                                Vector {
+                                    x: a_force.cos(),
+                                    y: a_force.sin(),
+                                }
+                            })
+                            .sum()
+                    })
+                    .sum()
+            };
+
+            result = run_force_based_step(
+                task,
+                &result,
+                &visibility,
+                force_collector,
+                optimizing_force_sched_multiplier,
+                rng,
             );
         }
 
@@ -271,7 +341,7 @@ pub fn force_based_optimizer(
                 &visibility,
                 force_collector,
                 relaxing_force_sched_multiplier,
-                &mut rng,
+                rng,
             );
         }
 
@@ -292,14 +362,16 @@ pub fn default_force_based_optimizer(
     task: &Task,
     initial_solution: &Solution,
     visibility: &Visibility,
+    rng: &mut Xoshiro256PlusPlus,
 ) -> (Solution, Visibility) {
-    force_based_optimizer(task, initial_solution, visibility, Default::default())
+    force_based_optimizer(task, initial_solution, visibility, Default::default(), rng)
 }
 
 pub fn big_step_force_based_optimizer(
     task: &Task,
     initial_solution: &Solution,
     visibility: &Visibility,
+    rng: &mut Xoshiro256PlusPlus,
 ) -> (Solution, Visibility) {
     force_based_optimizer(task, initial_solution, visibility, ForceParams {
         steps: 100,
@@ -311,7 +383,8 @@ pub fn big_step_force_based_optimizer(
         optimizing_force_decay: 0.99,
         relaxing_force_multiplier: 2.0,
         relaxing_force_decay: 0.95,
-    })
+    },
+    rng)
 }
 
 pub fn optimize_single_musicians(
@@ -366,14 +439,12 @@ pub fn random_swap_positions(
     task: &Task,
     initial_solution: &Solution,
     _visibility: &Visibility,
+    rng: &mut Xoshiro256PlusPlus,
 ) -> (Solution, Visibility) {
-    // TODO lift me to do_talogo
-    let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
-
     let mut solution = initial_solution.clone();
 
     let swap_count = task.musicians.len() / 20;
-    let swap_count = swap_count.max(1);
+    let swap_count = swap_count.min(5).max(2);
     for _ in 0..swap_count {
         let from = rng.gen_range(0..task.musicians.len());
         let to = rng.gen_range(0..task.musicians.len());
@@ -389,11 +460,51 @@ pub fn random_swap_positions(
     (solution, visibility)
 }
 
+pub fn random_change_positions(
+    task: &Task,
+    initial_solution: &Solution,
+    _visibility: &Visibility,
+    rng: &mut Xoshiro256PlusPlus,
+) -> (Solution, Visibility) {
+    let x_distr = if task.stage_width > 2.0 * MUSICIAN_RADIUS {
+        Some(Uniform::from(task.stage_bottom_left.0 + MUSICIAN_RADIUS .. task.stage_bottom_left.0+task.stage_width-MUSICIAN_RADIUS))
+    } else {
+        None
+    };
+    let y_distr = if task.stage_height > 2.0 * MUSICIAN_RADIUS {
+        Some(Uniform::from(task.stage_bottom_left.1 + MUSICIAN_RADIUS .. task.stage_bottom_left.1+task.stage_height-MUSICIAN_RADIUS))
+    } else {
+        None
+    };
+
+    let mut solution = initial_solution.clone();
+
+    let changes_count = task.musicians.len() / 10;
+    let changes_count = changes_count.max(1);
+    for _ in 0..changes_count {
+        let pos_idx = rng.gen_range(0..task.musicians.len());
+
+        let new_pos = Point {
+            x: x_distr.map(|x| x.sample(rng)).unwrap_or(task.stage_bottom_left.0 + MUSICIAN_RADIUS),
+            y: y_distr.map(|y| y.sample(rng)).unwrap_or(task.stage_bottom_left.1 + MUSICIAN_RADIUS),
+        };
+
+        if is_position_possible(&solution, pos_idx, new_pos, MUSICIAN_RADIUS_SQR) {
+            solution.placements[pos_idx] = new_pos;
+        }
+    }
+
+    let visibility = calc_visibility_fast(task, &solution);
+    (solution, visibility)
+}
+
 pub fn optimize_do_talogo(
     task: &Task,
     initial_solution: &Solution,
     visibility: Visibility,
 ) -> (Solution, Visibility) {
+    let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
+
     let mut best_solution = initial_solution.clone();
     let mut best_visibility = visibility.clone();
     let mut max_score = match calc(task, initial_solution, &visibility) {
@@ -405,54 +516,58 @@ pub fn optimize_do_talogo(
     while score_changed {
         score_changed = false;
 
-        const TRIES: usize = 3;
-        const CHAIN_LEN: usize = 4;
+        const TRIES: usize = 5;
+        let chain_len: usize = rng.gen_range(3..=10);
 
-        let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
         use rand::prelude::SliceRandom;
 
-        for _ in 0..TRIES {
-            let mut try_solution = best_solution.clone();
-            let mut try_visibility = best_visibility.clone();
+        let mut run = |optimizers: &OptimizerSlice| {
+            for _ in 0..TRIES {
+                let mut try_solution = best_solution.clone();
+                let mut try_visibility = best_visibility.clone();
 
-            let (_, mut prev_name) = OPTIMIZERS.choose(&mut rng).unwrap();
-            let mut chain_names = Vec::with_capacity(CHAIN_LEN);
-            for _ in 0..CHAIN_LEN {
-                let (optimize, name) = loop {
-                    let (optimize, name) = OPTIMIZERS.choose(&mut rng).unwrap();
-                    if prev_name != *name {
-                        prev_name = name;
-                        chain_names.push(name);
-                        break (optimize, name);
+                let (_, mut prev_name) = optimizers.choose(&mut rng).unwrap();
+                let mut chain_names = Vec::with_capacity(chain_len);
+                for _ in 0..chain_len {
+                    let (optimize, name) = loop {
+                        let (optimize, name) = optimizers.choose(&mut rng).unwrap();
+                        if prev_name != *name {
+                            prev_name = name;
+                            chain_names.push(name);
+                            break (optimize, name);
+                        }
+                    };
+
+                    try_solution.volumes = default_volumes_task(task);
+                    let (mut solution, visibility) = optimize(&task, &try_solution, &try_visibility, &mut rng);
+                    recalc_volumes(task, &mut solution, &visibility);
+
+                    try_solution = solution;
+                    try_visibility = visibility;
+                }
+
+                match score::calc(&task, &try_solution, &try_visibility) {
+                    Ok(points) => {
+                        println!(
+                            "Chain {} got {points} points",
+                            chain_names.iter().join(" -> ")
+                        );
+                        if points > max_score {
+                            max_score = points;
+                            best_solution = try_solution;
+                            best_visibility = try_visibility;
+                            score_changed = true;
+                        }
                     }
-                };
-
-                try_solution.volumes = default_volumes_task(task);
-                let (mut solution, visibility) = optimize(&task, &try_solution, &try_visibility);
-                recalc_volumes(task, &mut solution, &visibility);
-
-                try_solution = solution;
-                try_visibility = visibility;
-            }
-
-            match score::calc(&task, &try_solution, &try_visibility) {
-                Ok(points) => {
-                    println!(
-                        "Chain {} got {points} points",
-                        chain_names.iter().join(" -> ")
-                    );
-                    if points > max_score {
-                        max_score = points;
-                        best_solution = try_solution;
-                        best_visibility = try_visibility;
-                        score_changed = true;
+                    Err(err) => {
+                        println!("Chain solution is incorrect: {err}")
                     }
                 }
-                Err(err) => {
-                    println!("Chain solution is incorrect: {err}")
-                }
             }
-        }
+        };
+
+        run(ALL_OPTIMIZERS);
+        run(SAFE_OPTIMIZERS);
     }
 
     (best_solution, best_visibility)
