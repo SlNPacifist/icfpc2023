@@ -16,3 +16,4 @@ genevo = "0.7.1"
 num-format = "0.4.4"
 clap = {version = "4.3.11", features = ["cargo"]}
 float-ord = "0.3.2"
+rouille = "3.6.2"

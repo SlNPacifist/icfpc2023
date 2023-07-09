@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate rouille;
+
 use crate::score::potential_score;
 use crate::solution::dummy;
 use clap::{self, arg, value_parser};
@@ -11,6 +14,7 @@ mod io;
 mod optimizer;
 mod score;
 mod solution;
+mod http_api;
 
 const BASE_SOLUTIONS_DIR: &str = "../../solutions-20230708-124428";
 const OPTIMAL_SOLUTIONS_DIR: &str = "../../solutions";
@@ -34,11 +38,11 @@ fn get_optimal_solution(task: &Task, i: usize) -> Solution {
     get_solution(task, &format!("{OPTIMAL_SOLUTIONS_DIR}/problem-{i}.json"))
 }
 
-fn read_task(i: usize) -> Task {
+pub fn read_task(i: usize) -> Task {
     io::read(&format!("../../data/problem-{i}.json"))
 }
 
-fn write_optimal_solution(task: &Task, solution: &Solution, points: i64, i: usize) {
+pub fn write_optimal_solution(task: &Task, solution: &Solution, points: i64, i: usize) {
     let cur_solution = get_optimal_solution(task, i);
     let visibility = score::calc_visibility(&task, &cur_solution);
 
@@ -50,7 +54,8 @@ fn write_optimal_solution(task: &Task, solution: &Solution, points: i64, i: usiz
                 );
                 return;
             } else if cur_points == points {
-                println!("Solution for task {i} did not change")
+                println!("Solution for task {i} did not change");
+                return;
             } else {
                 println!("+++Solution for task {i} was improved from {cur_points} to {points}");
             }
@@ -89,9 +94,10 @@ fn main() {
                 arg!([base])
                     .value_parser(value_parser!(String))
                     .default_value("dummy"),
-            ),
+            )
         )
-        .subcommand(clap::command!("potential"));
+        .subcommand(clap::command!("potential"))
+        .subcommand(clap::command!("server"));
     let matches = cmd.get_matches();
     match matches.subcommand() {
         Some(("potential", _matches)) => {
@@ -172,6 +178,10 @@ fn main() {
         // }
         // }
         // }
+        Some(("server", _matches)) => {
+            println!("Starting server on port 8000");
+            http_api::start_server();
+        },
         _ => unreachable!("clap should ensure we don't get here"),
     };
 }
