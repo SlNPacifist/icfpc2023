@@ -1,12 +1,11 @@
 use crate::geom::{Point, Segment};
 use crate::io::{Attendee, Solution, Task, MUSICIAN_BLOCK_RADIUS, MUSICIAN_RADIUS, SCORE_CONST};
 use anyhow::{bail, Result};
+use float_ord::FloatOrd;
 use rayon::prelude::*;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
-use float_ord::FloatOrd;
-use itertools::Itertools;
 
 pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
     let solution_length = solution.placements.len();
@@ -187,86 +186,97 @@ fn get_angle_comparator(p0: Point) -> impl FnMut(&Point, &Point) -> Ordering {
 pub fn calc_visibility_fast(task: &Task, solution: &Solution) -> Visibility {
     let mut result = Mutex::new(vec![vec![true; task.musicians.len()]; task.attendees.len()]);
 
-    solution.placements.par_iter().enumerate().for_each(|(pos_index, pos)| {
-        // TODO pillars require more complex logic
-        let mut obstacles = solution.placements[0..pos_index].iter().map(|p| (*p, MUSICIAN_BLOCK_RADIUS)).chain(
-            solution.placements[pos_index + 1..].iter().map(|p| (*p, MUSICIAN_BLOCK_RADIUS))
-        ).chain(
-            task.pillars.iter().map(|p| (p.point(), p.radius))
-        )
-            .map(|(p, r)| (p-*pos, r))
-            .collect::<Vec<_>>();
+    solution
+        .placements
+        .par_iter()
+        .enumerate()
+        .for_each(|(pos_index, pos)| {
+            // TODO pillars require more complex logic
+            let mut obstacles = solution.placements[0..pos_index]
+                .iter()
+                .map(|p| (*p, MUSICIAN_BLOCK_RADIUS))
+                .chain(
+                    solution.placements[pos_index + 1..]
+                        .iter()
+                        .map(|p| (*p, MUSICIAN_BLOCK_RADIUS)),
+                )
+                .chain(task.pillars.iter().map(|p| (p.point(), p.radius)))
+                .map(|(p, r)| (p - *pos, r))
+                .collect::<Vec<_>>();
 
-        let mut crossing_zero_distances = BTreeMap::new();
+            let mut crossing_zero_distances = BTreeMap::new();
 
-        let mut obstacles = obstacles
-            .into_iter()
-            .flat_map(|(p, r)| {
-                let d = p.norm();
-                let alpha = (r / d).asin();
-                let theta = p.atan2();
-                let mut a1 = theta - alpha;
-                if a1 < -std::f64::consts::PI {
-                    a1 += std::f64::consts::TAU;
-                }
-                let mut a2 = theta + alpha;
-                if a2 > std::f64::consts::PI {
-                    a2 -= std::f64::consts::TAU;
-                }
+            let mut obstacles = obstacles
+                .into_iter()
+                .flat_map(|(p, r)| {
+                    let d = p.norm();
+                    let alpha = (r / d).asin();
+                    let theta = p.atan2();
+                    let mut a1 = theta - alpha;
+                    if a1 < -std::f64::consts::PI {
+                        a1 += std::f64::consts::TAU;
+                    }
+                    let mut a2 = theta + alpha;
+                    if a2 > std::f64::consts::PI {
+                        a2 -= std::f64::consts::TAU;
+                    }
 
-                if a2 < a1 {
-                    *crossing_zero_distances.entry(FloatOrd(d)).or_insert(0) += 1;
+                    if a2 < a1 {
+                        *crossing_zero_distances.entry(FloatOrd(d)).or_insert(0) += 1;
+                    }
+                    vec![(a1, true, d), (a2, false, d)].into_iter()
+                })
+                .collect::<Vec<_>>();
+            obstacles.sort_by(|(a, _, _), (b, _, _)| a.partial_cmp(b).unwrap());
+
+            let mut attendees = task
+                .attendees
+                .iter()
+                .enumerate()
+                .map(|(i, a)| {
+                    let v_from_pos = a.coord() - *pos;
+                    let angle = v_from_pos.atan2();
+                    let d = v_from_pos.norm();
+                    (i, angle, d)
+                })
+                .collect::<Vec<_>>();
+            attendees.sort_by(|(_, a, _), (_, b, _)| a.partial_cmp(b).unwrap());
+
+            // keep that previous angle
+            let mut entered_distances = crossing_zero_distances;
+            let mut obstacles = obstacles.into_iter().peekable();
+
+            for (att_index, att_angle, att_dist) in attendees {
+                while obstacles.peek().is_some() {
+                    let (obstacle_angle, enter, obstacle_center_dist) = obstacles.peek().unwrap();
+                    if obstacle_angle <= &att_angle {
+                        let k = FloatOrd(*obstacle_center_dist);
+                        if *enter {
+                            *entered_distances.entry(k).or_insert(0) += 1;
+                        } else {
+                            let v = entered_distances.get_mut(&k).unwrap();
+                            *v -= 1;
+                            if *v == 0 {
+                                entered_distances.remove(&k);
+                            }
+                        }
+                        obstacles.next();
+                    } else {
+                        break;
+                    }
                 }
-                vec![(a1, true, d),(a2, false, d)].into_iter()
-            })
-            .collect::<Vec<_>>();
-        obstacles.sort_by(|(a, _, _), (b, _, _)| {
-            a.partial_cmp(b).unwrap()
+                let has_close_obstacle = entered_distances
+                    .range(..=FloatOrd(att_dist))
+                    .next()
+                    .is_some();
+                {
+                    let mut result = result.lock().unwrap();
+                    result[att_index][pos_index] = !has_close_obstacle;
+                }
+            }
         });
 
-        let mut attendees = task
-            .attendees
-            .iter()
-            .enumerate()
-            .map(|(i, a)| {
-                let v_from_pos = a.coord() - *pos;
-                let angle = v_from_pos.atan2();
-                let d = v_from_pos.norm();
-                (i, angle, d)
-            })
-            .collect::<Vec<_>>();
-        attendees.sort_by(|(_, a, _), (_, b, _)| a.partial_cmp(b).unwrap());
-
-        // keep that previous angle
-        let mut entered_distances = crossing_zero_distances;
-        let mut obstacles = obstacles.into_iter().peekable();
-
-        for (att_index, att_angle, att_dist) in attendees {
-            while obstacles.peek().is_some() {
-                let (obstacle_angle, enter, obstacle_center_dist) = obstacles.peek().unwrap();
-                if obstacle_angle <= &att_angle {
-                    let k = FloatOrd(*obstacle_center_dist);
-                    if *enter {
-                        *entered_distances.entry(k).or_insert(0) += 1;
-                    } else {
-                        let v = entered_distances.get_mut(&k).unwrap();
-                        *v -= 1;
-                        if *v == 0 {
-                            entered_distances.remove(&k);
-                        }
-                    }
-                    obstacles.next();
-                } else {
-                    break;
-                }
-            }
-            let has_close_obstacle = entered_distances.range(..=FloatOrd(att_dist)).next().is_some();
-            {
-                let mut result = result.lock().unwrap();
-                result[att_index][pos_index] = !has_close_obstacle;
-            }
-        }
-    });
-
-    Visibility { visibility: result.into_inner().unwrap() }
+    Visibility {
+        visibility: result.into_inner().unwrap(),
+    }
 }

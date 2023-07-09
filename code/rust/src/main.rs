@@ -4,7 +4,6 @@ use clap::{self, arg, value_parser};
 use io::{Solution, Task};
 use num_format::{Locale, ToFormattedString};
 use optimizer::optimize_do_talogo;
-use score::Visibility;
 
 mod genetics;
 mod geom;
@@ -17,7 +16,7 @@ const BASE_SOLUTIONS_DIR: &str = "../../solutions-20230708-124428";
 const OPTIMAL_SOLUTIONS_DIR: &str = "../../solutions";
 const TASKS_NUM: usize = 90;
 
-fn get_solution(task: &Task, i: usize, solution_path: &str) -> Solution {
+fn get_solution(task: &Task, solution_path: &str) -> Solution {
     if std::fs::metadata(solution_path).is_ok() {
         io::read_solution(solution_path)
     } else {
@@ -28,15 +27,11 @@ fn get_solution(task: &Task, i: usize, solution_path: &str) -> Solution {
 }
 
 fn get_base_solution(task: &Task, i: usize) -> Solution {
-    get_solution(task, i, &format!("{BASE_SOLUTIONS_DIR}/problem-{i}.json"))
+    get_solution(task, &format!("{BASE_SOLUTIONS_DIR}/problem-{i}.json"))
 }
 
 fn get_optimal_solution(task: &Task, i: usize) -> Solution {
-    get_solution(
-        task,
-        i,
-        &format!("{OPTIMAL_SOLUTIONS_DIR}/problem-{i}.json"),
-    )
+    get_solution(task, &format!("{OPTIMAL_SOLUTIONS_DIR}/problem-{i}.json"))
 }
 
 fn read_task(i: usize) -> Task {

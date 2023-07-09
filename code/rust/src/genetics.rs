@@ -1,8 +1,7 @@
 use crate::geom::Point;
 use crate::io::{Solution, Task};
 use crate::score::{calc, calc_visibility, Visibility};
-use crate::solution;
-use genevo::{operator::prelude::*, population::*, prelude::*, types::fmt::Display};
+use genevo::{operator::prelude::*, population::*, prelude::*};
 
 type Genome = Vec<f64>;
 
