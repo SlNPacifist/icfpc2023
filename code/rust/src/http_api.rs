@@ -1,5 +1,5 @@
 use crate::score::{calc_ex, calc_visibility_fast};
-use crate::{get_optimal_solution, read_task, write_optimal_solution};
+use crate::{read_task, write_optimal_solution, get_manual_solution, write_manual_solution};
 use rouille;
 
 pub fn start_server() {
@@ -12,6 +12,7 @@ pub fn start_server() {
                 let visibility = calc_visibility_fast(&task, &solution);
                 let res = calc_ex(&task, &solution, &visibility);
                 write_optimal_solution(&task, &solution, res.score, id);
+                write_manual_solution(&solution, id);
                 rouille::Response::text(serde_json::to_string(&res).expect("Could not format score_ex json"))
             },
 
@@ -22,7 +23,7 @@ pub fn start_server() {
 
             (GET) (/api/solution/{id: usize}) => {
                 let task = read_task(id);
-                let solution = get_optimal_solution(&task, id);
+                let solution = get_manual_solution(&task, id);
                 rouille::Response::text(serde_json::to_string(&solution).expect("Could not format solution"))
             },
 

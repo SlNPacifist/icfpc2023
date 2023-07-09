@@ -16,3 +16,4 @@ Cargo.lock
 /token
 
 /ortools-data/*.json
+/solutions-manual/*.json

@@ -19,6 +19,7 @@ mod solution;
 
 const BASE_SOLUTIONS_DIR: &str = "../../solutions-20230708-124428";
 const OPTIMAL_SOLUTIONS_DIR: &str = "../../solutions";
+const MANUAL_SOLUTIONS_DIR: &str = "../../solutions-manual";
 const ORTOOLS_DATA_DIR: &str = "../../ortools-data";
 const TASKS_NUM: usize = 90;
 
@@ -38,6 +39,15 @@ fn get_base_solution(task: &Task, i: usize) -> Solution {
 
 fn get_optimal_solution(task: &Task, i: usize) -> Solution {
     get_solution(task, &format!("{OPTIMAL_SOLUTIONS_DIR}/problem-{i}.json"))
+}
+
+fn get_manual_solution(task: &Task, i: usize) -> Solution {
+    let solution_path = format!("{MANUAL_SOLUTIONS_DIR}/problem-{i}.json");
+    if std::fs::metadata(&solution_path).is_ok() {
+        io::read_solution(&solution_path)
+    } else {
+        get_optimal_solution(task, i)
+    }
 }
 
 pub fn read_task(i: usize) -> Task {
@@ -72,6 +82,14 @@ pub fn write_optimal_solution(task: &Task, solution: &Solution, points: i64, i: 
         &solution,
     );
 }
+
+pub fn write_manual_solution(solution: &Solution, i: usize) {
+    io::write(
+        &format!("{MANUAL_SOLUTIONS_DIR}/problem-{i}.json"),
+        &solution,
+    );
+}
+
 
 fn get_spread_solution(task: &Task) -> Solution {
     [5.0, 3.0, 2.0, 1.5, 1.1, 1.05, 1.01, 1.005, 1.001, 1.0]
