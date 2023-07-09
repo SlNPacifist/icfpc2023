@@ -159,7 +159,7 @@ pub fn recalc_volumes(task: &Task, solution: &mut Solution, visibility: &Visibil
                 })
                 .sum();
 
-            if attendee_sum > 0 {
+            if attendee_sum >= 0 {
                 MAX_VOLUME
             } else {
                 MIN_VOLUME
