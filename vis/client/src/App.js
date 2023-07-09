@@ -133,11 +133,11 @@ const getFrameProps = ({problem, solution, score}) => {
       canvasPoints: false,
       hoverAnnotation: true,
       tooltipContent: d => {
-        const score = getScore(d);
+        const score_ = getScore(d);
         return (
           <div className="App-tooltip-content">
             <p><b>Index: {d.index}</b></p>
-            <p><b>Score: {Number.isFinite(score) && score.toLocaleString()}</b></p>
+            <p><b>Score: {Number.isFinite(score_) && score_.toLocaleString()}</b></p>
             <p>X: {d.y}</p>
             <p>Y: {d.x}</p>
             {d.data.type === 'placement' && (
@@ -152,7 +152,9 @@ const getFrameProps = ({problem, solution, score}) => {
                   Total instruments: {instruments[d.instrument].length}
                 </p>
                 <p>
-                  At index: {instruments[d.instrument].join(', ')}
+                  At index(score): {instruments[d.instrument].map((i => (
+                    <span key={i}><b>{i}</b>: {score.musician[i].toLocaleString()}<span> </span></span>
+                  )))}
                 </p>
               </>
             )}
