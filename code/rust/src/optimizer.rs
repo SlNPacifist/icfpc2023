@@ -17,11 +17,10 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 static OPTIMIZERS: [(
     fn(&Task, &Solution, &Visibility) -> (Solution, Visibility),
     &'static str,
-); 4] = [
+); 3] = [
     (default_force_based_optimizer, "Force based"),
     (big_step_force_based_optimizer, "Force based with big steps"),
     (optimize_placements_greedy, "Greedy placement"),
-    (genetics::optimize_placements, "Genetic"),
 ];
 
 pub fn optimize_placements_greedy(
