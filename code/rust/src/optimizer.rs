@@ -296,21 +296,46 @@ pub fn optimize_do_talogo(
     while score_changed {
         score_changed = false;
 
-        for (optimize, name) in OPTIMIZERS {
-            let (solution, visibility) = optimize(&task, &best_solution, &best_visibility);
+        const TRIES: usize = 3;
+        const CHAIN_LEN: usize = 4;
 
-            match score::calc(&task, &solution, &visibility) {
+        let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
+        use rand::prelude::SliceRandom;
+
+        for _ in 0..TRIES {
+            let mut try_solution = best_solution.clone();
+            let mut try_visibility = best_visibility.clone();
+
+            let (_, mut prev_name) = OPTIMIZERS.choose(&mut rng).unwrap();
+            let mut chain_names = Vec::with_capacity(CHAIN_LEN);
+            for _ in 0..CHAIN_LEN {
+                let (optimize, name) = loop {
+                    let (optimize, name) = OPTIMIZERS.choose(&mut rng).unwrap();
+                    if prev_name != *name {
+                        prev_name = name;
+                        chain_names.push(name);
+                        break (optimize, name);
+                    }
+                };
+
+                let (solution, visibility) = optimize(&task, &try_solution, &try_visibility);
+
+                try_solution = solution;
+                try_visibility = visibility;
+            }
+
+            match score::calc(&task, &try_solution, &try_visibility) {
                 Ok(points) => {
-                    println!("{name} solution got {points} points");
+                    println!("Chain {} got {points} points", chain_names.iter().join(" -> "));
                     if points > max_score {
                         max_score = points;
-                        best_solution = solution;
-                        best_visibility = visibility;
+                        best_solution = try_solution;
+                        best_visibility = try_visibility;
                         score_changed = true;
                     }
                 }
                 Err(err) => {
-                    println!("{name} solution is incorrect: {err}")
+                    println!("Chain solution is incorrect: {err}")
                 }
             }
         }
