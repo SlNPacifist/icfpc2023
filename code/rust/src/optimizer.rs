@@ -294,15 +294,16 @@ pub fn default_force_based_optimizer(
     force_based_optimizer(task, initial_solution, visibility, Default::default())
 }
 
-const DX: [f64; 4] = [MUSICIAN_RADIUS, 0.0, -MUSICIAN_RADIUS, 0.0];
-const DY: [f64; 4] = [0.0, MUSICIAN_RADIUS, 0.0, -MUSICIAN_RADIUS];
 pub fn optimize_single_musicians(
     task: &Task,
     initial_solution: &Solution,
     visibility: &Visibility,
 ) -> (Solution, Visibility) {
     let mut solution = initial_solution.clone();
-    let mut best_score = calc(task, &solution, &visibility).unwrap_or(1000000000000i64);
+    let mut best_score = calc(task, &solution, &visibility).unwrap_or(-1000000000000i64);
+    let angle_distr = Uniform::from(0.0..std::f64::consts::TAU);
+    let dist_distr = Uniform::from(0.0..MUSICIAN_RADIUS);
+    let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
 
     let mut optimized = true;
     while optimized {
@@ -310,23 +311,27 @@ pub fn optimize_single_musicians(
         let mut best_res = None;
         for i in 0..solution.placements.len() {
             let org = solution.placements[i];
-            for (dx, dy) in DX.iter().zip(DY.iter()) {
-                solution.placements[i].x += dx;
-                solution.placements[i].y += dy;
-                let visibility = calc_visibility_fast(task, &solution);
-                let score = calc(task, &solution, &visibility).unwrap_or(1000000000000i64);
+            for i in 0..30 {
+                let angle = angle_distr.sample(&mut rng);
+
+                let v = Vector {
+                    x: angle.cos(),
+                    y: angle.sin(),
+                } *  dist_distr.sample(&mut rng);
+                solution.placements[i] = solution.placements[i] + v;
+                let visibility = calc_visibility(task, &solution);
+                let score = calc(task, &solution, &visibility).unwrap_or(-1000000000000i64);
                 let cur_best_score = best_res
-                    .map(|(score, _, _)| score)
+                    .map(|(score, _)| score)
                     .unwrap_or(-1000000000000i64);
                 if score > best_score && score > cur_best_score {
-                    best_res = Some((score, dx, dy));
+                    best_res = Some((score, v));
                 }
                 solution.placements[i] = org;
             }
 
-            if let Some((score, dx, dy)) = best_res {
-                solution.placements[i].x += dx;
-                solution.placements[i].y += dy;
+            if let Some((score, v)) = best_res {
+                solution.placements[i] = solution.placements[i] + v;
                 best_score = score;
                 optimized = true;
             }
