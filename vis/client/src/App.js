@@ -57,7 +57,7 @@ const getFrameProps = ({problem, solution, score}) => {
 
   function getColor({type, index, color}) {
     if (type === 'placement') {
-      const s = score.attendee[index];
+      const s = score.musician[index];
       if (s === undefined) {
         return '#dcdcdc';
       }
