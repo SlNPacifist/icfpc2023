@@ -5,11 +5,9 @@ import { XYFrame } from "semiotic";
 import defaultProblem from './data/problem-58.json';
 import defaultSolution from './solutions/problem-58.json';
 import ProblemSelector from './components/ProblemSelector.react';
+import COLORS from './colors.json';
 
 const N = 91;
-
-const COLOR_CODING_BAD = ['#af1f28', '#cc2127', '#e43025', '#ef6023', '#f99e25', '#fece22'];
-const COLOR_CODING_GOOD = ['#dbe237', '#99ca3b', '#43b749', '#2db672'];
 
 function distSqr(x1, y1, x2, y2) {
   const dx = x1 - x2;
@@ -46,6 +44,10 @@ function getAngleComparator(p0) {
     const a2 = Math.atan2(p2.y - p0.y, p2.x - p0.x);
     return a1 - a2;
   }
+}
+
+function getInstrumentColor(instrument) {
+  return COLORS[instrument % COLORS.length];
 }
 
 const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) => {
@@ -137,7 +139,7 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
   const attendeeScores = scores.map((s, idx) => {
     return s.reduce((p, c) => p + c, 0.0);
   });
-  const placementScores = Array(attendees.length).fill(0);
+  const placementScores = Array(placements.length).fill(0);
   scores.forEach(s => {
     s.forEach((score, index) => placementScores[index] += score);
   })
@@ -197,11 +199,21 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
       size: [10000, 10000],
       xAccessor: "x",
       yAccessor: "y",
-      pointStyle: function(e) { return { fill: e.color, fillOpacity: .9 } },
+      pointStyle: function(e) { return { fill: e.color, } },
       customPointMark: function(e) {
         const color = getColor(e.d);
-        // does not work with canvas
-        return ( <g><circle r={e.d.radius ? e.xScale(e.d.radius) : 1} fill={color} /></g> );
+        const instrumentColor = e.d.type === 'placement' ? getInstrumentColor(e.d.instrument) : '';
+        return ( <g>
+          <circle r={e.d.radius ? e.xScale(e.d.radius) : 1} fill={color} />
+          {e.d.type=== 'placement' && e.d.radius > 3 && (
+            <>
+              <circle r={e.xScale(e.d.radius - 2)} fill={instrumentColor} stroke="#000000" strokeWidth={2} />
+              <text alignmentBaseline="central" textAnchor="middle" style={{mixBlendMode: 'difference', filter: 'invert(1) grayscale(1) contrast(9)'}}>
+                {e.d.instrument}
+              </text>
+            </>
+          )}
+        </g> );
       },
       title: "Diamonds: Carat vs Price",
       axes: [{ orient: "bottom", label: "X" }, { label: "Y", orient: "left" }],
