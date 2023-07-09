@@ -179,6 +179,8 @@ function App() {
   const [problemId, setProblemId] = useState(1);
   const [score, setScore] = useState(defaultScore);
   const dragStartCoords = useRef(null);
+  const dragX = useRef(null);
+  const dragY = useRef(null);
 
   const onChange = (e) => {
     const value = e.target.value;
@@ -200,7 +202,18 @@ function App() {
       return;
     }
     dragStartCoords.current = [event.x, event.y];
+    dragX.current = 0;
+    dragY.current = 0;
   }, []);
+  const drag = useCallback((element, event) => {
+    const [prevX, prevY] = dragStartCoords.current;
+    const [translateX, translateY] = element.parentElement.attributes.transform.value.match(/([\d.]+),([\d.]+)/g)[0]
+      .split(',')
+      .map(Number);
+    element.parentElement.attributes.transform.value = `translate(${translateX + event.x},${translateY + event.y})`;
+    dragX.current += event.x;
+    dragY.current += event.y;
+  }, [solution]);
   const ended = useCallback((element, event) => {
     const {type, index} = element.dataset;
     if (type !== 'placement' || !dragStartCoords.current) {
@@ -208,8 +221,8 @@ function App() {
     }
 
     const [prevX, prevY] = dragStartCoords.current;
-    const shiftX = (event.x - prevX) / xScale;
-    const shiftY = (event.y - prevY) / xScale;
+    const shiftX = (dragX.current) / xScale;
+    const shiftY = (dragY.current) / xScale;
     solution.placements[index].x += shiftX;
     solution.placements[index].y -= shiftY;
     const newSolution = {...solution};
@@ -234,6 +247,7 @@ function App() {
       d3.select(`#placement-${i}`).call(
         d3.drag()
           .on("start", function(e) {started(this, e)})
+          .on('drag', function(e) {drag(this, e)})
           .on('end', function(e) {ended(this, e)})
       );
     });
