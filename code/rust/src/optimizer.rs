@@ -1,6 +1,6 @@
 use crate::genetics;
 use crate::geom::{Point, Vector};
-use crate::io::MUSICIAN_RADIUS;
+use crate::io::{default_volumes_task, MUSICIAN_RADIUS};
 use crate::score::{self, calc, calc_visibility, calc_visibility_fast};
 use crate::{
     io::{Solution, Task},
@@ -319,6 +319,7 @@ pub fn optimize_do_talogo(
                     }
                 };
 
+                try_solution.volumes = default_volumes_task(task);
                 let (mut solution, visibility) = optimize(&task, &try_solution, &try_visibility);
                 recalc_volumes(task, &mut solution, &visibility);
 
