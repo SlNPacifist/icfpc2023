@@ -40,7 +40,6 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
 #[derive(Clone, Debug)]
 pub struct Visibility {
     pub visibility: Vec<Vec<bool>>,
-    pub q: Vec<f64>,
 }
 
 impl Visibility {
@@ -55,23 +54,6 @@ impl Visibility {
             .filter(|(_, v)| **v)
             .map(|(i, _)| i)
     }
-}
-
-pub fn calc_q(solution: &Solution) -> Vec<f64> {
-    solution
-            .placements
-            .par_iter()
-            .enumerate()
-            .map(|(i, musician_i)| {
-                1.0 + solution
-                    .placements
-                    .iter()
-                    .enumerate()
-                    .filter(|(j, _)| i !=*j)
-                    .map(|(_, &musician_j)| 1.0 / musician_i.dist(musician_j))
-                    .sum::<f64>()
-            })
-            .collect()
 }
 
 pub fn calc_visibility(task: &Task, solution: &Solution) -> Visibility {
@@ -104,16 +86,48 @@ pub fn calc_visibility(task: &Task, solution: &Solution) -> Visibility {
                     .collect()
             })
             .collect(),
-        q: calc_q(solution),
     }
 }
 
-pub fn attendee_score(attendee: &Attendee, instrument: usize, musician_coord: Point) -> i64 {
+pub fn attendee_score_without_q(
+    attendee: &Attendee,
+    instrument: usize,
+    musician_coord: Point,
+) -> i64 {
     let weight = attendee.tastes[instrument];
     (weight * SCORE_CONST / musician_coord.dist_sqr(attendee.coord())).ceil() as i64
 }
 
+pub fn calc_musician2q(task: &Task, solution: &Solution) -> Vec<f64> {
+    let mut result = vec![1.0; task.musicians.len()];
+
+    // Aymeric Fromherz — Вчера, в 23:01
+    // ...you can also see it as active if and only if pillars is not empty in the problem description.
+
+    if task.pillars.is_empty() {
+        return result;
+    }
+
+    for (mus_idx, mus_instr) in task.musicians.iter().enumerate() {
+        let mus_pos = solution.placements[mus_idx];
+
+        for other_mus_idx in (mus_idx + 1)..task.musicians.len() {
+            let other_mus_instr = task.musicians[other_mus_idx];
+            if *mus_instr != other_mus_instr {
+                continue;
+            }
+            let other_mus_pos = solution.placements[other_mus_idx];
+            let d = 1.0 / mus_pos.dist(other_mus_pos);
+            result[mus_idx] += d;
+            result[other_mus_idx] += d;
+        }
+    }
+    result
+}
+
 pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result<i64> {
+    let musician2q = calc_musician2q(task, solution);
+
     validate(task, solution).map(|_| {
         task.attendees
             .par_iter()
@@ -122,8 +136,11 @@ pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result
                 visibility
                     .for_attendee(attendee_index)
                     .map(|index| {
-                        let mut score =
-                            attendee_score(a, task.musicians[index], solution.placements[index]);
+                        let mut score = attendee_score_without_q(
+                            a,
+                            task.musicians[index],
+                            solution.placements[index],
+                        );
 
                         // Aymeric Fromherz — Вчера, в 23:01
                         // ...you can also see it as active if and only if pillars is not empty in the problem description.
@@ -131,7 +148,7 @@ pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result
                         if !task.pillars.is_empty() {
                             // Aymeric Fromherz — Вчера, в 18:55
                             // It is implemented as calling ceil when computing I_i(k), and ceil again after multiplying with q(k), as indicated in the spec.
-                            score = ((score as f64) * visibility.q[index]).ceil() as i64;
+                            score = ((score as f64) * musician2q[index]).ceil() as i64;
                         }
 
                         score
@@ -189,7 +206,7 @@ pub fn potential_score(task: &Task) -> i64 {
                         .map(|segment| segment.dist(coord))
                         .min_by(|a, b| a.partial_cmp(b).unwrap())
                         .unwrap();
-                    attendee_score(
+                    attendee_score_without_q(
                         attendee,
                         instrument,
                         Point {
@@ -309,6 +326,5 @@ pub fn calc_visibility_fast(task: &Task, solution: &Solution) -> Visibility {
 
     Visibility {
         visibility: result.into_inner().unwrap(),
-        q: calc_q(solution),
     }
 }

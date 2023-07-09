@@ -4,7 +4,7 @@ use crate::io::MUSICIAN_RADIUS;
 use crate::score::{self, calc, calc_visibility};
 use crate::{
     io::{Solution, Task},
-    score::{attendee_score, Visibility},
+    score::{attendee_score_without_q, Visibility},
 };
 use std::collections::BinaryHeap;
 
@@ -31,7 +31,7 @@ pub fn optimize_placements_greedy(
                 .enumerate()
                 .filter(|(index, _)| visibility.is_visible(*index, pos_index))
                 .map(|(_, attendee)| {
-                    attendee_score(attendee, instrument, solution.placements[pos_index])
+                    attendee_score_without_q(attendee, instrument, solution.placements[pos_index])
                 })
                 .sum::<i64>();
             moves.push((score, instrument, pos_index));
@@ -134,9 +134,11 @@ pub fn force_based_optimizer(
                     .filter(|(index, _)| visibility.is_visible(*index, pos_index))
                     .map(|(_, attendee)| {
                         let instrument = task.musicians[pos_index];
-                        let force =
-                            attendee_score(attendee, instrument, result.placements[pos_index])
-                                as f64;
+                        let force = attendee_score_without_q(
+                            attendee,
+                            instrument,
+                            result.placements[pos_index],
+                        ) as f64;
                         (attendee.coord() - old_position) * force
                     })
                     .sum::<Vector>()
