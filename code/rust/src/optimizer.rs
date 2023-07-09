@@ -25,6 +25,13 @@ const ALL_OPTIMIZERS: &OptimizerSlice = &[
     (optimize_border, "Optimize border"),
 ];
 
+const SAFE_OPTIMIZERS: &OptimizerSlice = &[
+    (default_force_based_optimizer, "Force based"),
+    (big_step_force_based_optimizer, "Force based with big steps"),
+    (optimize_placements_greedy_opt, "Greedy placement"),
+    (optimize_border, "Optimize border"),
+];
+
 fn optimize_placements_greedy_opt(
     task: &Task,
     solution: &Solution,
