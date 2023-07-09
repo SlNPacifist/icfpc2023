@@ -5,7 +5,7 @@ use crate::score;
 use crate::score::Visibility;
 
 pub fn dummy(task: &Task) -> Solution {
-    let mut res = Solution::default();
+    let mut res = Solution::default_for_task(task);
     let mut x = task.stage_left() + MUSICIAN_RADIUS;
     let mut y = task.stage_bottom() + MUSICIAN_RADIUS;
     for _m in &task.musicians {
@@ -23,7 +23,7 @@ pub fn dummy_hex(task: &Task, radius_multiplier: f64, scale_to_stage: bool) -> S
     let r = MUSICIAN_RADIUS;
     let r = r * radius_multiplier;
 
-    let mut res = Solution::default();
+    let mut res = Solution::default_for_task(task);
     let mut x = task.stage_left() + r;
     let mut y = task.stage_bottom() + r;
     let mut last_y = y;
@@ -60,7 +60,7 @@ pub fn dummy_narrow(task: &Task) -> Solution {
         (hypo * hypo - width * width).sqrt()
     };
 
-    let mut res = Solution::default();
+    let mut res = Solution::default_for_task(task);
     let mut x = task.stage_left() + MUSICIAN_RADIUS;
     let mut y = task.stage_bottom() + MUSICIAN_RADIUS;
     let mut even = false;

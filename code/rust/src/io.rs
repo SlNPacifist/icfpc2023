@@ -139,7 +139,7 @@ impl Task {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Solution {
     pub placements: Vec<Point>,
     #[serde(default = "default_volumes")]
@@ -157,6 +157,13 @@ pub fn default_volumes_task(task: &Task) -> Vec<f64> {
 }
 
 impl Solution {
+    pub fn default_for_task(task: &Task) -> Solution {
+        Solution {
+            placements: Vec::new(),
+            volumes: default_volumes_task(task),
+        }
+    }
+
     pub fn transpose(self) -> Self {
         Self {
             placements: self.placements.into_iter().map(|c| c.transpose()).collect(),
