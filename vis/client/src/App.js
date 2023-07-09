@@ -1,11 +1,13 @@
 import './App.css';
-import {useState, useEffect} from 'react';
+import {useState, useEffect, useCallback, useRef, useLayoutEffect} from 'react';
 import { XYFrame } from "semiotic";
 
 import ProblemSelector from './components/ProblemSelector.react';
 import COLORS from './colors.json';
+import * as d3 from 'd3';
 
 const N = 91;
+let xScale;
 
 function getInstrumentColor(instrument) {
   return COLORS[instrument % COLORS.length];
@@ -104,7 +106,8 @@ const getFrameProps = ({problem, solution, score}) => {
       customPointMark: function(e) {
         const color = getColor(e.d);
         const instrumentColor = e.d.type === 'placement' ? getInstrumentColor(e.d.instrument) : '';
-        return ( <g>
+        xScale = e.xScale(1);
+        return ( <g id={`${e.d.type}-${e.d.index}`} data-index={e.d.index} data-type={e.d.type}>
           <circle r={e.d.radius ? e.xScale(e.d.radius) : 1} fill={color} />
           {e.d.type=== 'placement' && e.d.radius > 3 && (
             <>
@@ -168,6 +171,7 @@ function App() {
   const [solution, setSolution] = useState();
   const [problemId, setProblemId] = useState(1);
   const [score, setScore] = useState(defaultScore);
+  const dragStartCoords = useRef(null);
 
   const onChange = (e) => {
     const value = e.target.value;
@@ -183,8 +187,50 @@ function App() {
       setScore(score);
     })();
   }, [problemId]);
+  const started = useCallback((element, event) => {
+    const {type, index} = element.dataset;
+    if (type !== 'placement') {
+      return;
+    }
+    dragStartCoords.current = [event.x, event.y];
+  }, []);
+  const ended = useCallback((element, event) => {
+    const {type, index} = element.dataset;
+    if (type !== 'placement' || !dragStartCoords.current) {
+      return;
+    }
+
+    const [prevX, prevY] = dragStartCoords.current;
+    const shiftX = (event.x - prevX) / xScale;
+    const shiftY = (event.y - prevY) / xScale;
+    solution.placements[index].x += shiftX;
+    solution.placements[index].y -= shiftY;
+
+    setSolution({...solution});
+    dragStartCoords.current = null;
+  }, [solution]);
+
+  useLayoutEffect(() => {
+    if (!solution) return;
+    solution.placements.forEach((placement, i) => {
+    //   d3.drag
+    //   .on("drag", function () {
+    //     d3.select(this)
+    //         .attr("x", d3.event.x)
+    //         .attr("y", d3.event.y);
+    // });
+      d3.select(`#placement-${i}`).call(
+        d3.drag()
+          .on("start", function(e) {started(this, e)})
+          .on('end', function(e) {ended(this, e)})
+      );
+    });
+  }, [solution]);
 
   const {frameProps} = (problem && solution && score && getFrameProps({problem, solution, score})) || {};
+  const toggleHoverLayer = () => {
+    document.body.classList.toggle('hiddenHoverLayer');
+  }
 
   return (
     <>
@@ -206,6 +252,9 @@ function App() {
         })}
       </div>
       {score && <div>Total: {score.score}</div>}
+      <div className="App-global-menu">
+        <button onClick={toggleHoverLayer}>Toggle hover layer</button>
+      </div>
     </>
   );
 }
