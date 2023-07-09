@@ -2,8 +2,6 @@ import './App.css';
 import {useState, useEffect} from 'react';
 import { XYFrame } from "semiotic";
 
-import defaultProblem from './data/problem-58.json';
-import defaultSolution from './solutions/problem-58.json';
 import ProblemSelector from './components/ProblemSelector.react';
 import COLORS from './colors.json';
 
@@ -18,7 +16,7 @@ const defaultScore = {
   attendee: [],
   musician: [],
 };
-const getFrameProps = ({problem = defaultProblem, solution = defaultSolution, score = defaultScore}) => {
+const getFrameProps = ({problem, solution, score}) => {
   const attendees = problem.attendees.map((at, index) => ({
     ...at,
     type: 'attendee',
@@ -141,6 +139,30 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution, sc
   }
 }
 
+async function fetchApi(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    console.error(`Could not fetch ${url}`, response.status);
+    return;
+  }
+  return response.json();
+};
+
+async function fetchScore(problemId, solution) {
+  const response = await fetch(`/api/solution/${problemId}/score`, {
+    method: 'POST',
+    headers: {
+      'Content-type': 'text/plain',
+    },
+    body: JSON.stringify(solution),
+  });
+  if (!response.ok) {
+    console.error(response.status);
+    return;
+  }
+  return response.json();
+}
+
 function App() {
   const [problem, setProblem] = useState();
   const [solution, setSolution] = useState();
@@ -149,27 +171,20 @@ function App() {
 
   const onChange = (e) => {
     const value = e.target.value;
-    setProblem(require(`./data/problem-${value}.json`))
-    setSolution(require(`./solutions/problem-${value}.json`))
     setProblemId(value);
   }
-  const {frameProps} = getFrameProps({problem, solution, score});
+
   useEffect(() => {
-    fetch(`/api/solution/${problemId}/score`, {
-      method: 'POST',
-      headers: {
-        'Content-type': 'text/plain',
-      },
-      body: JSON.stringify(solution),
-    }).then(async response => {
-      if (!response.ok) {
-        console.error(response.status);
-        return;
-      }
-      let res = await response.json();
-      setScore(res);
-    });
+    (async () => {
+      const [problem, solution] = await Promise.all([`/api/problem/${problemId}`, `/api/solution/${problemId}`].map(fetchApi));
+      const score = await fetchScore(problemId, solution);
+      setProblem(problem);
+      setSolution(solution);
+      setScore(score);
+    })();
   }, [problemId]);
+
+  const {frameProps} = (problem && solution && score && getFrameProps({problem, solution, score})) || {};
 
   return (
     <>
@@ -177,7 +192,7 @@ function App() {
         <div className="App-selector">
           <ProblemSelector N={N} onChange={onChange} />
         </div>
-        {problemId && problem && solution && (<XYFrame {...frameProps} className="App-xyframe"/>)}
+        {frameProps && (<XYFrame {...frameProps} className="App-xyframe"/>)}
         {/* {isVisible.map((s, idx) => {
           const score = s.reduce((p, c) => p + (c ? "1" : "0"), "");
           return (
@@ -190,7 +205,7 @@ function App() {
           )
         })}
       </div>
-      <div>Total: {score.score}</div>
+      {score && <div>Total: {score.score}</div>}
     </>
   );
 }
