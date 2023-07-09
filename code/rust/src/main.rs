@@ -101,7 +101,8 @@ fn main() {
         .subcommand(clap::command!("potential"))
         .subcommand(clap::command!("server"))
         .subcommand(clap::command!("make-ortools-input"))
-        .subcommand(clap::command!("apply-ortools-output"));
+        .subcommand(clap::command!("apply-ortools-output"))
+        .subcommand(clap::command!("recalc-volumes"));
     let matches = cmd.get_matches();
     match matches.subcommand() {
         Some(("potential", _matches)) => {
@@ -219,6 +220,24 @@ fn main() {
                     placements: output,
                     volumes: default_volumes_task(&task),
                 };
+                let visibility = score::calc_visibility_fast(&task, &solution);
+                recalc_volumes(&task, &mut solution, &visibility);
+                match score::calc(&task, &solution, &visibility) {
+                    Ok(points) => {
+                        println!("ortools solution for task {i} got {points} points");
+                        write_optimal_solution(&task, &solution, points, i);
+                    }
+                    Err(err) => {
+                        println!("ortools solution from for task {i} is incorrect: {err}");
+                    }
+                };
+            }
+        }
+
+        Some(("recalc-volumes", matches)) => {
+            for i in 1..=TASKS_NUM {
+                let task = read_task(i);
+                let mut solution = get_optimal_solution(&task, i);
                 let visibility = score::calc_visibility_fast(&task, &solution);
                 recalc_volumes(&task, &mut solution, &visibility);
                 match score::calc(&task, &solution, &visibility) {
