@@ -18,6 +18,7 @@ mod http_api;
 
 const BASE_SOLUTIONS_DIR: &str = "../../solutions-20230708-124428";
 const OPTIMAL_SOLUTIONS_DIR: &str = "../../solutions";
+const ORTOOLS_DATA_DIR: &str = "../../ortools-data";
 const TASKS_NUM: usize = 90;
 
 fn get_solution(task: &Task, solution_path: &str) -> Solution {
@@ -97,7 +98,9 @@ fn main() {
             )
         )
         .subcommand(clap::command!("potential"))
-        .subcommand(clap::command!("server"));
+        .subcommand(clap::command!("server"))
+        .subcommand(clap::command!("make-ortools-input"))
+        .subcommand(clap::command!("apply-ortools-output"));
     let matches = cmd.get_matches();
     match matches.subcommand() {
         Some(("potential", _matches)) => {
@@ -155,7 +158,76 @@ fn main() {
                     }
                 };
             }
-        }
+        },
+
+        Some(("make-ortools-input", matches)) => {
+
+            #[derive(serde::Serialize)]
+            struct OrToolsInput {
+                positions: Vec<geom::Point>,
+                musicians: Vec<usize>,
+                matrix: Vec<Vec<i64>>,
+            }
+
+            for i in 1..=TASKS_NUM {
+                let task = read_task(i);
+                let solution = get_optimal_solution(&task, i);
+                let visibility = score::calc_visibility_fast(&task, &solution);
+
+                let mut m = vec![vec![0; task.musicians.len()]; task.musicians.len()];
+                for inst_idx in 0..task.musicians.len() {
+                    for pos_idx in 0..task.musicians.len() {
+                        let inst = task.musicians[inst_idx];
+                        for (att_idx, att) in task.attendees.iter().enumerate() {
+                            if visibility.is_visible(att_idx, pos_idx) {
+                                m[inst_idx][pos_idx] += score::attendee_score_without_q(att, inst, solution.placements[pos_idx]);
+                            }
+                        }
+                    }
+                }
+
+                let input = OrToolsInput {
+                    positions: solution.placements.clone(),
+                    musicians: task.musicians.clone(),
+                    matrix: m,
+                };
+
+                std::fs::write(
+                    format!("{ORTOOLS_DATA_DIR}/input-{i}.json"),
+                    serde_json::to_vec(&input).expect("Could not serialize matrix"),
+                )
+                    .expect("Got error when writing to file");
+            }
+        },
+
+        Some(("apply-ortools-output", matches)) => {
+            for i in 1..=TASKS_NUM {
+                let task = read_task(i);
+
+                let output: Vec<geom::Point> = {
+                    let path = format!("{ORTOOLS_DATA_DIR}/output-{i}.json");
+                    let data = std::fs::read_to_string(&path).expect(&format!("Unable to read file {path}"));
+                    serde_json::from_str(&data).expect("Could not parse data")
+                };
+
+                let solution = Solution {
+                    placements: output,
+                };
+                let visibility = score::calc_visibility_fast(&task, &solution);
+                match score::calc(&task, &solution, &visibility) {
+                    Ok(points) => {
+                        println!("ortools solution for task {i} got {points} points");
+                        write_optimal_solution(&task, &solution, points, i);
+                    }
+                    Err(err) => {
+                        println!(
+                            "ortools solution from for task {i} is incorrect: {err}"
+                        );
+                    }
+                };
+            }
+        },
+
         // Some(("spread_optimize", _matches)) => {
 
         // {

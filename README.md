@@ -23,6 +23,17 @@ https://github.com/SlNPacifist/icfpc2023
   brew update
   brew install jq
   ```
+Для оптимизации решений через ortools нужно его поставить. В контейнере `debian:bookworm-slim` можно сделать так
+
+```shell
+apt update
+apt install -y python3 python3-pip python3.11-venv python3-numpy
+python3 -m pip install --upgrade --user ortools
+
+python3 -m venv ~/ortools/
+~/ortools/bin/pip install --upgrade ortools
+~/ortools/bin/python ./code/ortools/solve_lin_ass.py
+```
 
 ## Submissions
 
