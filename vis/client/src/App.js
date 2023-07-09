@@ -124,10 +124,11 @@ const getFrameProps = ({problem, solution, score}) => {
       canvasPoints: false,
       hoverAnnotation: true,
       tooltipContent: d => {
+        const score = getScore(d);
         return (
           <div className="App-tooltip-content">
             <p><b>Index: {d.index}</b></p>
-            <p><b>Score: {getScore(d)}</b></p>
+            <p><b>Score: {Number.isFinite(score) && score.toLocaleString()}</b></p>
             <p>X: {d.y}</p>
             <p>Y: {d.x}</p>
             {d.data.type === 'placement' && (
