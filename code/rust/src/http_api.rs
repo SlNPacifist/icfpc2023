@@ -15,6 +15,14 @@ pub fn start_server() {
                 rouille::Response::text("OK")
             },
 
+            (POST) (/solution/score/{id: usize}) => {
+                let text = rouille::input::plain_text_body_with_limit(request, 1000000000).expect("input expected");
+                let solution = serde_json::from_str(&text).expect("Could not parse data");
+                let task = read_task(id);
+                let visibility = calc_visibility_fast(&task, &solution);
+                rouille::Response::text(format!("{}", calc(&task, &solution, &visibility).unwrap_or(-1000000000000)))
+            },
+
             _ => rouille::Response::empty_404()
         )
     });    
