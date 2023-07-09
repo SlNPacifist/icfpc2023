@@ -45,6 +45,9 @@
   position: fixed;
   top: 10px;
   right: 10px;
+  background: white;
+  padding: 10px;
+  box-shadow: 1px 1px 5px red;
 }
 
 .hiddenHoverLayer .interaction-layer {

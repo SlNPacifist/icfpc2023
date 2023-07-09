@@ -205,8 +205,13 @@ function App() {
     const shiftY = (event.y - prevY) / xScale;
     solution.placements[index].x += shiftX;
     solution.placements[index].y -= shiftY;
+    const newSolution = {...solution};
 
-    setSolution({...solution});
+    fetchScore(problemId, newSolution)
+      .then((score) => {
+        setSolution({...solution});
+        setScore(score);
+      });
     dragStartCoords.current = null;
   }, [solution]);
 
@@ -254,6 +259,7 @@ function App() {
       {score && <div>Total: {score.score}</div>}
       <div className="App-global-menu">
         <button onClick={toggleHoverLayer}>Toggle hover layer</button>
+        <p>CurrentScore: {score && score.score.toLocaleString()}</p>
       </div>
     </>
   );
