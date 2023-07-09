@@ -178,6 +178,9 @@ fn main() {
                 matrix: Vec<Vec<i64>>,
             }
 
+            // TODO add cli arg
+            let use_volume = true;
+
             for i in 1..=TASKS_NUM {
                 let task = read_task(i);
                 let solution = get_optimal_solution(&task, i);
@@ -189,11 +192,13 @@ fn main() {
                         let inst = task.musicians[inst_idx];
                         for (att_idx, att) in task.attendees.iter().enumerate() {
                             if visibility.is_visible(att_idx, pos_idx) {
-                                m[inst_idx][pos_idx] += score::attendee_score_without_q(
+                                let s = score::attendee_score_without_q(
                                     att,
                                     inst,
                                     solution.placements[pos_idx],
                                 );
+                                let s = if use_volume { (s as f64 * solution.volumes[inst_idx]).ceil() as i64 } else { s };
+                                m[inst_idx][pos_idx] += s;
                             }
                         }
                     }
