@@ -1,7 +1,7 @@
-use crate::genetics;
+use crate::{genetics, solution};
 use crate::geom::{Point, Segment, Vector};
 use crate::io::{default_volumes_task, MUSICIAN_BLOCK_RADIUS, MUSICIAN_RADIUS, MUSICIAN_RADIUS_SQR};
-use crate::score::{self, calc, calc_visibility, calc_visibility_fast};
+use crate::score::{self, calc, calc_visibility, calc_visibility_fast, calc_ex};
 use crate::{
     io::{Solution, Task},
     score::{attendee_score_without_q, Visibility},
@@ -22,13 +22,7 @@ const ALL_OPTIMIZERS: &OptimizerSlice = &[
     (big_step_force_based_optimizer, "Force based with big steps"),
     (optimize_placements_greedy_opt, "Greedy placement"),
     (random_swap_positions, "Random swap positions"),
-    (random_change_positions, "Random move positions"),
-];
-
-const SAFE_OPTIMIZERS: &OptimizerSlice = &[
-    (default_force_based_optimizer, "Force based"),
-    (big_step_force_based_optimizer, "Force based with big steps"),
-    (optimize_placements_greedy_opt, "Greedy placement"),
+    (optimize_border, "Optimize border"),
 ];
 
 fn optimize_placements_greedy_opt(
@@ -495,6 +489,102 @@ pub fn random_change_positions(
     }
 
     let visibility = calc_visibility_fast(task, &solution);
+    (solution, visibility)
+}
+
+pub fn optimize_border(
+    task: &Task,
+    initial_solution: &Solution,
+    initial_visibility: &Visibility,
+    _rng: &mut Xoshiro256PlusPlus,
+) -> (Solution, Visibility) {
+    let mut valid_points = vec![];
+    let mut x = task.stage_left() + MUSICIAN_RADIUS;
+    let mut y = task.stage_bottom() + MUSICIAN_RADIUS;
+    valid_points.push(Point {x, y});
+    while y <= task.stage_top() - 2.0 * MUSICIAN_RADIUS {
+        y += MUSICIAN_RADIUS;
+        valid_points.push(Point {x, y});
+    }
+    while x <= task.stage_right() - 2.0 * MUSICIAN_RADIUS {
+        x += MUSICIAN_RADIUS;
+        valid_points.push(Point {x, y});
+    }
+    while y >= task.stage_bottom() + 2.0 * MUSICIAN_RADIUS {
+        y -= MUSICIAN_RADIUS;
+        valid_points.push(Point {x, y});
+    }
+    while x >= task.stage_left() + 2.0 * MUSICIAN_RADIUS {
+        x -= MUSICIAN_RADIUS;
+        valid_points.push(Point {x, y});
+    }
+    valid_points = valid_points.iter().filter(|p| {
+        initial_solution.placements.iter().all(|p2| {
+            p.dist(*p2) >= MUSICIAN_RADIUS
+        })
+    }).copied().collect();
+
+    let mut visibility = initial_visibility.clone();
+    if valid_points.is_empty() {
+        return (initial_solution.clone(), visibility);
+    }
+
+    let mut valid_dist_points = vec![];
+    valid_dist_points.push(valid_points[0]);
+    for point in valid_points.iter() {
+        if point.dist(*valid_dist_points.last().unwrap()) > MUSICIAN_RADIUS * 3.0 {
+            valid_dist_points.push(*point);
+        }
+    }
+
+    println!("Valid points are {:?}", valid_dist_points);
+
+    let mut min_score_by_instrument = vec![None; task.instruments_len()];
+    let score = calc_ex(task, initial_solution, &visibility);
+    for i in 0..score.musician.len() {
+        let Point {x, y} = initial_solution.placements[i];
+        let mindist = (x - task.stage_left()).min(task.stage_right() - x).min(y - task.stage_bottom()).min(task.stage_top() - y);
+        if mindist < 1.5 * MUSICIAN_RADIUS {
+            continue;
+        }
+        let instrument = task.musicians[i];
+        let cur_score = score.musician[i];
+        let min_score = min_score_by_instrument[instrument].map(|(score, _)| score).unwrap_or(1_000_000_000_000i64);
+        if cur_score < min_score {
+            min_score_by_instrument[instrument] = Some((cur_score, i));
+        }
+    }
+
+    let musicians: Vec<usize> = min_score_by_instrument.iter().flat_map(|o| o.map(|(_, idx)| vec![idx]).unwrap_or(vec![])).collect();
+    println!("Valid musicians are {:?}", musicians);
+
+    let mut best_change = None;
+    let mut solution = initial_solution.clone();
+
+    if valid_dist_points.len() < 10 && musicians.len() > 30 {
+        println!("Skipping border optimization");
+        return (initial_solution.clone(), visibility);
+    }
+
+    for musician_idx in musicians {
+        let org_point = solution.placements[musician_idx];
+        for point in valid_dist_points.iter() {
+            solution.placements[musician_idx] = *point;
+            let visibility = calc_visibility_fast(task, &solution);
+            let cur_score = calc(task, &solution, &visibility).expect("Border optimizer generated incorrect solution");
+            let best_score = best_change.map(|(score, _, _)| score).unwrap_or(score.score);
+            println!("Moving musician {musician_idx} from {org_point:?} to {point:?}, score delta is {}", cur_score - best_score);
+            if cur_score > best_score {
+                best_change = Some((cur_score, musician_idx, point));
+            }
+        }
+        solution.placements[musician_idx] = org_point;
+    }
+    
+    if let Some((_, musician_idx, point)) = best_change {
+        solution.placements[musician_idx] = *point;
+        visibility = calc_visibility(task, &solution);
+    }
     (solution, visibility)
 }
 
