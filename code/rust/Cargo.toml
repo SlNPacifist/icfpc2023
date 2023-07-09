@@ -17,3 +17,5 @@ num-format = "0.4.4"
 clap = {version = "4.3.11", features = ["cargo"]}
 float-ord = "0.3.2"
 rouille = "3.6.2"
+rand = "0.8.5"
+rand_xoshiro = "0.6.0"

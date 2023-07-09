@@ -1,12 +1,17 @@
 use crate::genetics;
 use crate::geom::{Point, Vector};
 use crate::io::MUSICIAN_RADIUS;
-use crate::score::{self, calc, calc_visibility};
+use crate::score::{self, calc, calc_visibility, calc_visibility_fast};
 use crate::{
     io::{Solution, Task},
     score::{attendee_score_without_q, Visibility},
 };
 use std::collections::BinaryHeap;
+use itertools::Itertools;
+
+use rand::SeedableRng;
+use rand::distributions::{Distribution, Uniform};
+use rand_xoshiro::Xoshiro256PlusPlus;
 
 static OPTIMIZERS: [(
     fn(&Task, &Solution, &Visibility) -> (Solution, Visibility),
@@ -58,15 +63,14 @@ pub fn optimize_placements_greedy(
     (res, visibility)
 }
 
-// TODO schedule
-const RELAXING_FORCE_BASE: f64 = 1e7;
-
 const MUSICIAN_RADIUS_SQR: f64 = MUSICIAN_RADIUS * MUSICIAN_RADIUS;
 
 pub struct ForceParams {
     steps: usize,
     refresh_visibility_rate: usize,
 
+    random_walk_multiplier: f64,
+    random_walk_decay: f64,
     optimizing_force_multiplier: f64,
     optimizing_force_decay: f64,
     relaxing_force_multiplier: f64,
@@ -76,12 +80,14 @@ pub struct ForceParams {
 impl Default for ForceParams {
     fn default() -> Self {
         ForceParams {
-            steps: 5,
-            refresh_visibility_rate: 5,
+            steps: 100,
+            refresh_visibility_rate: 10,
 
-            optimizing_force_multiplier: 1e-7,
+            random_walk_multiplier: 0.5,
+            random_walk_decay: 0.9,
+            optimizing_force_multiplier: 1.0,
             optimizing_force_decay: 0.999,
-            relaxing_force_multiplier: 1e-7 / 2.0,
+            relaxing_force_multiplier: 0.5,
             relaxing_force_decay: 0.999,
         }
     }
@@ -91,40 +97,57 @@ fn run_force_based_step(
     task: &Task,
     start_solution: &Solution,
     visibility: &Visibility,
-    force_collector: impl Fn(&Task, &Solution, &Visibility, usize, Point) -> Vector,
+    mut force_collector: impl FnMut(&Task, &Solution, &Visibility, usize, Point) -> Vector,
     power_multiplier: f64,
+    rng: &mut impl rand::Rng,
 ) -> Solution {
     let mut new_positions = start_solution.clone();
-    // TODO shuffle positions before iteration
-    for (pos_index, old_position) in start_solution.placements.iter().enumerate() {
-        let force = force_collector(task, start_solution, visibility, pos_index, *old_position);
 
-        let force = force * power_multiplier;
-        // println!("applying force: point #{pos_index} {old_position:?}, force mag {}", force.dot(force).sqrt());
+    use rand::prelude::SliceRandom;
 
-        // TODO try multiple times with smaller steps in same directions
-        let mut new_position = new_positions.placements[pos_index] + force;
-        new_position.x = new_position.x.clamp(
-            task.stage_left() + MUSICIAN_RADIUS,
-            task.stage_right() - MUSICIAN_RADIUS,
-        );
-        new_position.y = new_position.y.clamp(
-            task.stage_bottom() + MUSICIAN_RADIUS,
-            task.stage_top() - MUSICIAN_RADIUS,
-        );
+    let mut forces = start_solution.placements.iter().enumerate()
+        .map(|(pos_index, old_position)| {
+            (pos_index, force_collector(task, start_solution, visibility, pos_index, *old_position))
+        })
+        .collect::<Vec<_>>();
 
-        if new_positions
-            .placements
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| *i != pos_index)
-            .any(|(_, other_new_pos)| new_position.dist_sqr(*other_new_pos) < MUSICIAN_RADIUS_SQR)
-        {
-            continue;
-        }
+    let max_norm = forces.iter().map(|(_, f)| f.norm()).max_by(|a, b| {
+        a.partial_cmp(b).unwrap()
+    }).unwrap();
 
-        new_positions.placements[pos_index] = new_position;
-    }
+    forces.shuffle(rng);
+
+    // println!("max force norm: {max_norm}");
+
+    forces.into_iter().map(|(i, f)| (i, f * (1.0/max_norm)))
+        .for_each(|(pos_index, force)| {
+            let force = force * power_multiplier;
+            let cur_position = new_positions.placements[pos_index];
+            // println!("applying force: point #{pos_index} {cur_position:?}, force norm {}", force.norm());
+
+            // TODO try multiple times with smaller steps in same directions
+            let mut new_position = cur_position + force;
+            new_position.x = new_position.x.clamp(
+                task.stage_left() + MUSICIAN_RADIUS,
+                task.stage_right() - MUSICIAN_RADIUS,
+            );
+            new_position.y = new_position.y.clamp(
+                task.stage_bottom() + MUSICIAN_RADIUS,
+                task.stage_top() - MUSICIAN_RADIUS,
+            );
+
+            if new_positions
+                .placements
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != pos_index)
+                .any(|(_, other_new_pos)| new_position.dist_sqr(*other_new_pos) < MUSICIAN_RADIUS_SQR)
+            {
+                return;
+            }
+
+            new_positions.placements[pos_index] = new_position;
+        });
 
     new_positions
 }
@@ -135,13 +158,45 @@ pub fn force_based_optimizer(
     visibility: &Visibility,
     params: ForceParams,
 ) -> (Solution, Visibility) {
+    let mut rng = Xoshiro256PlusPlus::seed_from_u64(42);
+
+    // to avoid double borrowing
+    let mut rng_angles = Xoshiro256PlusPlus::seed_from_u64(42);
+    let angle_distr = Uniform::from(0.0..std::f64::consts::TAU);
+
     let mut result = initial_solution.clone();
 
+    let mut random_walk_sched_multiplier = params.random_walk_multiplier;
     let mut optimizing_force_sched_multiplier = params.optimizing_force_multiplier;
     let mut relaxing_force_sched_multiplier = params.relaxing_force_multiplier;
 
     let mut visibility = visibility.clone();
     for step in 0..params.steps {
+        // random walk phase
+        {
+            let force_collector = |_task: &Task,
+                                   _start_solution: &Solution,
+                                   _visibility: &Visibility,
+                                   _pos_index: usize,
+                                   _old_position: Point| {
+                let angle = angle_distr.sample(&mut rng_angles);
+
+                Vector {
+                    x: angle.cos(),
+                    y: angle.sin(),
+                }
+            };
+
+            result = run_force_based_step(
+                task,
+                &result,
+                &visibility,
+                force_collector,
+                random_walk_sched_multiplier,
+                &mut rng,
+            );
+        }
+
         // optimizing phase
         {
             let force_collector = |task: &Task,
@@ -171,6 +226,7 @@ pub fn force_based_optimizer(
                 &visibility,
                 force_collector,
                 optimizing_force_sched_multiplier,
+                &mut rng,
             );
         }
 
@@ -187,8 +243,7 @@ pub fn force_based_optimizer(
                     .enumerate()
                     .filter(|(i, _)| *i != pos_index)
                     .map(|(_, other_musician_position)| {
-                        let force = -1.0 * RELAXING_FORCE_BASE
-                            / old_position.dist_sqr(*other_musician_position);
+                        let force = -1.0 / old_position.dist_sqr(*other_musician_position);
                         (*other_musician_position - old_position) * force
                     })
                     .sum::<Vector>()
@@ -200,9 +255,11 @@ pub fn force_based_optimizer(
                 &visibility,
                 force_collector,
                 relaxing_force_sched_multiplier,
+                &mut rng,
             );
         }
 
+        random_walk_sched_multiplier *= params.random_walk_decay;
         optimizing_force_sched_multiplier *= params.optimizing_force_decay;
         relaxing_force_sched_multiplier *= params.relaxing_force_decay;
 
