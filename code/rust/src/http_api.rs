@@ -1,4 +1,4 @@
-use crate::score::{calc, calc_ex, calc_visibility_fast};
+use crate::score::{calc_ex, calc_visibility_fast};
 use crate::{get_optimal_solution, read_task, write_optimal_solution};
 use rouille;
 
