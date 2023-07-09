@@ -40,6 +40,7 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
 #[derive(Clone, Debug)]
 pub struct Visibility {
     pub visibility: Vec<Vec<bool>>,
+    pub q: Vec<f64>,
 }
 
 impl Visibility {
@@ -86,6 +87,20 @@ pub fn calc_visibility(task: &Task, solution: &Solution) -> Visibility {
                     .collect()
             })
             .collect(),
+        q: solution
+            .placements
+            .par_iter()
+            .enumerate()
+            .map(|(i, musician_i)| {
+                1 + solution
+                    .placements
+                    .iter()
+                    .enumerate()
+                    .filter(|(&j, _)| i != j)
+                    .map(|(_, &musician_j)| 1.0 / musician_i.dist(musician_j))
+                    .sum()
+            })
+            .collect(),
     }
 }
 
@@ -103,7 +118,18 @@ pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result
                 visibility
                     .for_attendee(attendee_index)
                     .map(|index| {
-                        attendee_score(a, task.musicians[index], solution.placements[index])
+                        let mut score = attendee_score(a, task.musicians[index], solution.placements[index]);
+
+                        // Aymeric Fromherz — Вчера, в 23:01
+                        // ...you can also see it as active if and only if pillars is not empty in the problem description.
+
+                        if !task.pillars.is_empty() {
+                            // Aymeric Fromherz — Вчера, в 18:55
+                            // It is implemented as calling ceil when computing I_i(k), and ceil again after multiplying with q(k), as indicated in the spec.
+                            score = ((score as f64) * visibility.q[index]).ceil() as i64;
+                        }
+
+                        score
                     })
                     .sum::<i64>()
             })
