@@ -33,6 +33,7 @@ const getFrameProps = ({problem, solution, score}) => {
     index,
     color: "#d45087",
     radius: 5.0,
+    volume: solution.volumes[index],
     instrument: problem.musicians[index],
   }));
 
@@ -132,9 +133,14 @@ const getFrameProps = ({problem, solution, score}) => {
             <p>X: {d.y}</p>
             <p>Y: {d.x}</p>
             {d.data.type === 'placement' && (
-              <p>
-                Instrument: {d.instrument}
-              </p>
+              <>
+                <p>
+                  Instrument: {d.instrument}
+                </p>
+                <p>
+                  Volume: {d.volume}
+                </p>
+              </>
             )}
           </div>
         );
