@@ -57,6 +57,23 @@ impl Visibility {
     }
 }
 
+pub fn calc_q(solution: &Solution) -> Vec<f64> {
+    solution
+            .placements
+            .par_iter()
+            .enumerate()
+            .map(|(i, musician_i)| {
+                1.0 + solution
+                    .placements
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, _)| i !=*j)
+                    .map(|(_, &musician_j)| 1.0 / musician_i.dist(musician_j))
+                    .sum::<f64>()
+            })
+            .collect()
+}
+
 pub fn calc_visibility(task: &Task, solution: &Solution) -> Visibility {
     Visibility {
         visibility: task
@@ -87,20 +104,7 @@ pub fn calc_visibility(task: &Task, solution: &Solution) -> Visibility {
                     .collect()
             })
             .collect(),
-        q: solution
-            .placements
-            .par_iter()
-            .enumerate()
-            .map(|(i, musician_i)| {
-                1 + solution
-                    .placements
-                    .iter()
-                    .enumerate()
-                    .filter(|(&j, _)| i != j)
-                    .map(|(_, &musician_j)| 1.0 / musician_i.dist(musician_j))
-                    .sum()
-            })
-            .collect(),
+        q: calc_q(solution),
     }
 }
 
@@ -305,5 +309,6 @@ pub fn calc_visibility_fast(task: &Task, solution: &Solution) -> Visibility {
 
     Visibility {
         visibility: result.into_inner().unwrap(),
+        q: calc_q(solution),
     }
 }
