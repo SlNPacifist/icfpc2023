@@ -118,7 +118,8 @@ pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result
                 visibility
                     .for_attendee(attendee_index)
                     .map(|index| {
-                        let mut score = attendee_score(a, task.musicians[index], solution.placements[index]);
+                        let mut score =
+                            attendee_score(a, task.musicians[index], solution.placements[index]);
 
                         // Aymeric Fromherz — Вчера, в 23:01
                         // ...you can also see it as active if and only if pillars is not empty in the problem description.
