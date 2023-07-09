@@ -240,9 +240,6 @@ function App() {
   return (
     <>
       <div className="App">
-        <div className="App-selector">
-          <ProblemSelector N={N} onChange={onChange} />
-        </div>
         {frameProps && (<XYFrame {...frameProps} className="App-xyframe"/>)}
         {/* {isVisible.map((s, idx) => {
           const score = s.reduce((p, c) => p + (c ? "1" : "0"), "");
@@ -259,6 +256,9 @@ function App() {
       {score && <div>Total: {score.score}</div>}
       <div className="App-global-menu">
         <button onClick={toggleHoverLayer}>Toggle hover layer</button>
+        <div className="App-selector">
+          <ProblemSelector N={N} onChange={onChange} />
+        </div>
         <p>CurrentScore: {score && score.score.toLocaleString()}</p>
       </div>
     </>
