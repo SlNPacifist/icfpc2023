@@ -39,6 +39,7 @@
   background: #fff;
   border: 1px solid gray;
   padding: 5px;
+  max-width: 300px;
 }
 
 .App-global-menu {

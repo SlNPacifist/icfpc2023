@@ -152,7 +152,23 @@ const getFrameProps = ({problem, solution, score}) => {
                   Total instruments: {instruments[d.instrument].length}
                 </p>
                 <p>
-                  {instruments[d.instrument].join(', ')}
+                  At index: {instruments[d.instrument].join(', ')}
+                </p>
+              </>
+            )}
+            {d.data.type === 'attendee' && (
+              <>
+                <p>
+                  Positive tastes: {d.data.tastes
+                    .filter(t => t >= 0)
+                    .map((t, i) => <span key={i}><b>{i}</b>: {t}<span> </span></span>)
+                  }
+                </p>
+                <p>
+                  Negative tastes: {d.data.tastes
+                    .filter(t => t < 0)
+                    .map((t, i) => <span key={i}><b>{i}</b>: {t}<span> </span></span>)
+                  }
                 </p>
               </>
             )}
