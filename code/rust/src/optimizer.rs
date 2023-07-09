@@ -17,8 +17,9 @@ use rand_xoshiro::Xoshiro256PlusPlus;
 static OPTIMIZERS: [(
     fn(&Task, &Solution, &Visibility) -> (Solution, Visibility),
     &'static str,
-); 3] = [
+); 4] = [
     (default_force_based_optimizer, "Force based"),
+    (big_step_force_based_optimizer, "Force based with big steps"),
     (optimize_placements_greedy, "Greedy placement"),
     (genetics::optimize_placements, "Genetic"),
 ];
@@ -64,8 +65,6 @@ pub fn optimize_placements_greedy(
     (res, visibility)
 }
 
-const MUSICIAN_RADIUS_SQR: f64 = MUSICIAN_RADIUS * MUSICIAN_RADIUS;
-
 pub struct ForceParams {
     steps: usize,
     refresh_visibility_rate: usize,
@@ -94,6 +93,8 @@ impl Default for ForceParams {
     }
 }
 
+const FORCE_GAP_SIZE: f64 = 0.0;
+
 fn run_force_based_step(
     task: &Task,
     start_solution: &Solution,
@@ -102,6 +103,8 @@ fn run_force_based_step(
     power_multiplier: f64,
     rng: &mut impl rand::Rng,
 ) -> Solution {
+    let musician_dist_gap_sqr: f64 = (MUSICIAN_RADIUS + FORCE_GAP_SIZE) * (MUSICIAN_RADIUS + FORCE_GAP_SIZE);
+
     let mut new_positions = start_solution.clone();
 
     use rand::prelude::SliceRandom;
@@ -153,7 +156,7 @@ fn run_force_based_step(
                 .enumerate()
                 .filter(|(i, _)| *i != pos_index)
                 .any(|(_, other_new_pos)| {
-                    new_position.dist_sqr(*other_new_pos) < MUSICIAN_RADIUS_SQR
+                    new_position.dist_sqr(*other_new_pos) < musician_dist_gap_sqr
                 })
             {
                 return;
@@ -291,6 +294,24 @@ pub fn default_force_based_optimizer(
     visibility: &Visibility,
 ) -> (Solution, Visibility) {
     force_based_optimizer(task, initial_solution, visibility, Default::default())
+}
+
+pub fn big_step_force_based_optimizer(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+) -> (Solution, Visibility) {
+    force_based_optimizer(task, initial_solution, visibility, ForceParams {
+        steps: 100,
+        refresh_visibility_rate: 10,
+
+        random_walk_multiplier: 0.5,
+        random_walk_decay: 0.9,
+        optimizing_force_multiplier: 100.0,
+        optimizing_force_decay: 0.99,
+        relaxing_force_multiplier: 2.0,
+        relaxing_force_decay: 0.95,
+    })
 }
 
 pub fn optimize_single_musicians(
