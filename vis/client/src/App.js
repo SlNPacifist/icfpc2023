@@ -45,6 +45,14 @@ const getFrameProps = ({problem, solution, score}) => {
     index,
   }));
 
+  const instruments = problem.musicians.reduce((acc, instrument, index) => {
+    if (!acc[instrument]) {
+      acc[instrument] = [];
+    }
+    acc[instrument].push(index);
+    return acc;
+  }, {});
+
   const maxD = Math.max(...attendees.flatMap(({x, y}) => [x, y]));
 
   const getScore = ({data}) => {
@@ -139,6 +147,12 @@ const getFrameProps = ({problem, solution, score}) => {
                 </p>
                 <p>
                   Volume: {d.volume}
+                </p>
+                <p>
+                  Total instruments: {instruments[d.instrument].length}
+                </p>
+                <p>
+                  {instruments[d.instrument].join(', ')}
                 </p>
               </>
             )}
