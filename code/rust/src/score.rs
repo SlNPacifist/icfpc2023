@@ -1,5 +1,7 @@
 use crate::geom::{Point, Segment};
-use crate::io::{Attendee, Solution, Task, MUSICIAN_BLOCK_RADIUS, MUSICIAN_RADIUS, SCORE_CONST};
+use crate::io::{
+    Attendee, ScoreExtended, Solution, Task, MUSICIAN_BLOCK_RADIUS, MUSICIAN_RADIUS, SCORE_CONST,
+};
 use anyhow::{bail, Result};
 use float_ord::FloatOrd;
 use rayon::prelude::*;
@@ -157,6 +159,52 @@ pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result
             })
             .sum()
     })
+}
+
+pub fn calc_ex(task: &Task, solution: &Solution, visibility: &Visibility) -> ScoreExtended {
+    let musician2q = calc_musician2q(task, solution);
+    let mut musician = vec![0; solution.placements.len()];
+    let mut attendee = vec![0; task.attendees.len()];
+
+    let score = validate(task, solution)
+        .map(|_| {
+            task.attendees
+                .iter()
+                .enumerate()
+                .map(|(attendee_index, a)| {
+                    visibility
+                        .for_attendee(attendee_index)
+                        .map(|index| {
+                            let mut score = attendee_score_without_q(
+                                a,
+                                task.musicians[index],
+                                solution.placements[index],
+                            );
+
+                            // Aymeric Fromherz — Вчера, в 23:01
+                            // ...you can also see it as active if and only if pillars is not empty in the problem description.
+
+                            if !task.pillars.is_empty() {
+                                // Aymeric Fromherz — Вчера, в 18:55
+                                // It is implemented as calling ceil when computing I_i(k), and ceil again after multiplying with q(k), as indicated in the spec.
+                                score = ((score as f64) * musician2q[index]).ceil() as i64;
+                            }
+
+                            attendee[attendee_index] += score;
+                            musician[index] += score;
+                            score
+                        })
+                        .sum::<i64>()
+                })
+                .sum()
+        })
+        .unwrap_or(-1_000_000_000_000);
+
+    ScoreExtended {
+        score,
+        attendee,
+        musician,
+    }
 }
 
 pub fn potential_score(task: &Task) -> i64 {

@@ -1,6 +1,6 @@
+use crate::score::{calc, calc_ex, calc_visibility_fast};
+use crate::{read_task, write_optimal_solution};
 use rouille;
-use crate::{write_optimal_solution, read_task};
-use crate::score::{calc_visibility_fast, calc};
 
 pub fn start_server() {
     rouille::start_server("localhost:8000", move |request| {
@@ -20,10 +20,10 @@ pub fn start_server() {
                 let solution = serde_json::from_str(&text).expect("Could not parse data");
                 let task = read_task(id);
                 let visibility = calc_visibility_fast(&task, &solution);
-                rouille::Response::text(format!("{}", calc(&task, &solution, &visibility).unwrap_or(-1000000000000)))
+                rouille::Response::text(serde_json::to_string(&calc_ex(&task, &solution, &visibility)).expect("Could not format score_ex json"))
             },
 
             _ => rouille::Response::empty_404()
         )
-    });    
+    });
 }

@@ -47,6 +47,13 @@ pub struct Attendee {
     pub tastes: Vec<f64>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ScoreExtended {
+    pub score: i64,
+    pub attendee: Vec<i64>,
+    pub musician: Vec<i64>,
+}
+
 impl Attendee {
     pub fn transpose(self) -> Self {
         Self {

@@ -10,11 +10,11 @@ use optimizer::optimize_do_talogo;
 
 mod genetics;
 mod geom;
+mod http_api;
 mod io;
 mod optimizer;
 mod score;
 mod solution;
-mod http_api;
 
 const BASE_SOLUTIONS_DIR: &str = "../../solutions-20230708-124428";
 const OPTIMAL_SOLUTIONS_DIR: &str = "../../solutions";
@@ -95,7 +95,7 @@ fn main() {
                 arg!([base])
                     .value_parser(value_parser!(String))
                     .default_value("dummy"),
-            )
+            ),
         )
         .subcommand(clap::command!("potential"))
         .subcommand(clap::command!("server"))
@@ -158,10 +158,9 @@ fn main() {
                     }
                 };
             }
-        },
+        }
 
         Some(("make-ortools-input", matches)) => {
-
             #[derive(serde::Serialize)]
             struct OrToolsInput {
                 positions: Vec<geom::Point>,
@@ -180,7 +179,11 @@ fn main() {
                         let inst = task.musicians[inst_idx];
                         for (att_idx, att) in task.attendees.iter().enumerate() {
                             if visibility.is_visible(att_idx, pos_idx) {
-                                m[inst_idx][pos_idx] += score::attendee_score_without_q(att, inst, solution.placements[pos_idx]);
+                                m[inst_idx][pos_idx] += score::attendee_score_without_q(
+                                    att,
+                                    inst,
+                                    solution.placements[pos_idx],
+                                );
                             }
                         }
                     }
@@ -196,9 +199,9 @@ fn main() {
                     format!("{ORTOOLS_DATA_DIR}/input-{i}.json"),
                     serde_json::to_vec(&input).expect("Could not serialize matrix"),
                 )
-                    .expect("Got error when writing to file");
+                .expect("Got error when writing to file");
             }
-        },
+        }
 
         Some(("apply-ortools-output", matches)) => {
             for i in 1..=TASKS_NUM {
@@ -206,13 +209,12 @@ fn main() {
 
                 let output: Vec<geom::Point> = {
                     let path = format!("{ORTOOLS_DATA_DIR}/output-{i}.json");
-                    let data = std::fs::read_to_string(&path).expect(&format!("Unable to read file {path}"));
+                    let data = std::fs::read_to_string(&path)
+                        .expect(&format!("Unable to read file {path}"));
                     serde_json::from_str(&data).expect("Could not parse data")
                 };
 
-                let solution = Solution {
-                    placements: output,
-                };
+                let solution = Solution { placements: output };
                 let visibility = score::calc_visibility_fast(&task, &solution);
                 match score::calc(&task, &solution, &visibility) {
                     Ok(points) => {
@@ -220,13 +222,11 @@ fn main() {
                         write_optimal_solution(&task, &solution, points, i);
                     }
                     Err(err) => {
-                        println!(
-                            "ortools solution from for task {i} is incorrect: {err}"
-                        );
+                        println!("ortools solution from for task {i} is incorrect: {err}");
                     }
                 };
             }
-        },
+        }
 
         // Some(("spread_optimize", _matches)) => {
 
@@ -253,7 +253,7 @@ fn main() {
         Some(("server", _matches)) => {
             println!("Starting server on port 8000");
             http_api::start_server();
-        },
+        }
         _ => unreachable!("clap should ensure we don't get here"),
     };
 }
