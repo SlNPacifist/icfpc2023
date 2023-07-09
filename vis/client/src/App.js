@@ -1,5 +1,5 @@
 import './App.css';
-import {useState} from 'react';
+import {useState, useEffect} from 'react';
 import { XYFrame } from "semiotic";
 
 import defaultProblem from './data/problem-58.json';
@@ -9,48 +9,16 @@ import COLORS from './colors.json';
 
 const N = 91;
 
-function distSqr(x1, y1, x2, y2) {
-  const dx = x1 - x2;
-  const dy = y1 - y2;
-  return dx * dx + dy * dy;
-}
-
-function dot(x1, y1, x2, y2) {
-  return x1 * x2 + y1 * y2;
-}
-
-function cross(x1, y1, x2, y2) {
-  return x1 * y2 - x2 * y1;
-}
-
-function distPointToSegmentSqr(px, py, x1, y1, x2, y2) {
-  if (dot(px - x1, py - y1, x2 - x1, y2 - y1) < 0) {
-    return distSqr(px, py, x1, y1);
-  }
-  if (dot(px - x2, py - y2, x1 - x2, y1 - y2) < 0) {
-    return distSqr(px, py, x2, y2);
-  }
-  const t = (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1);
-  return t * t / ((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
-}
-
-function score(attendee, musician, placement) {
-  return Math.ceil(1000000.0 * attendee.tastes[musician] / distSqr(attendee.x, attendee.y, placement.x, placement.y));
-}
-
-function getAngleComparator(p0) {
-  return (p1, p2) => {
-    const a1 = Math.atan2(p1.y - p0.y, p1.x - p0.x);
-    const a2 = Math.atan2(p2.y - p0.y, p2.x - p0.x);
-    return a1 - a2;
-  }
-}
-
 function getInstrumentColor(instrument) {
   return COLORS[instrument % COLORS.length];
 }
 
-const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) => {
+const defaultScore = {
+  score: 0,
+  attendee: [],
+  musician: [],
+};
+const getFrameProps = ({problem = defaultProblem, solution = defaultSolution, score = defaultScore}) => {
   const attendees = problem.attendees.map((at, index) => ({
     ...at,
     type: 'attendee',
@@ -76,90 +44,27 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
     index,
   }));
 
-
-  const scores = Array.from(Array(attendees.length), () => new Array(placements.length));
-  const isVisible = Array.from(Array(attendees.length), () => new Array(placements.length));
-  for (let i = 0; i < placements.length; i++) {
-    const msc = [...placements.slice(0, i), ...placements.slice(i + 1)];
-    const att = [...attendees];
-    const compare = getAngleComparator(placements[i]);
-    msc.sort(compare);
-    att.sort(compare);
-
-    // keep that previous angle
-    let m = -1;
-    for (let j = 0; j < att.length; j++) {
-      let aa = Math.atan2(att[j].y - placements[i].y, att[j].x - placements[i].x);
-      let mn = m;
-      while (true) {
-        mn = mn + 1;
-        let ma = Math.atan2(msc[mn % msc.length].y - placements[i].y, msc[mn % msc.length].x - placements[i].x);
-        if (mn === msc.length || ma > aa) {
-          break;
-        }
-      }
-      m = mn - 1;
-      isVisible[att[j].index][i] = distPointToSegmentSqr(
-        msc[mn % msc.length].x, msc[mn % msc.length].y,
-        placements[i].x, placements[i].y,
-        att[j].x, att[j].y,
-      ) >= 25 && distPointToSegmentSqr(
-        msc[(m + msc.length) % msc.length].x, msc[(m + msc.length) % msc.length].y,
-        placements[i].x, placements[i].y,
-        att[j].x, att[j].y,
-      ) >= 25;
-    }
-  }
-
-  for (let i = 0; i < attendees.length; i++) {
-    // placements.sort((a, b) => {
-    //   return distSqr(attendees[i].x, attendees[i].y, a.x, a.y) - distSqr(attendees[i].x, attendees[i].y, b.x, b.y);
-    // })
-    for (let j = 0; j < placements.length; j++) {
-      // let isVisible = true;
-      // for (let k = 0; k < placements.length; k++) {
-      //   if (k !== j && distPointToSegmentSqr(placements[k].x, placements[k].y, attendees[i].x, attendees[i].y, placements[j].x, placements[j].y) <= 25) {
-      //     isVisible = false;
-      //   }
-      // }
-      scores[i][j] = isVisible[i][j] ? score(attendees[i], problem.musicians[j], placements[j]) : 0;
-      if (i === 5 && j === 1) {
-        console.log(attendees[i]);
-        console.log(problem.musicians[j]);
-        console.log(placements[j]);
-        const x = 1000000.0 * attendees[i].tastes[problem.musicians[j]];
-        const y = distSqr(attendees[i].x, attendees[i].y, placements[j].x, placements[j].y);
-        console.log(x, y);
-      }
-    }
-  }
-
   const maxD = Math.max(...attendees.flatMap(({x, y}) => [x, y]));
-
-  const attendeeScores = scores.map((s, idx) => {
-    return s.reduce((p, c) => p + c, 0.0);
-  });
-  const placementScores = Array(placements.length).fill(0);
-  scores.forEach(s => {
-    s.forEach((score, index) => placementScores[index] += score);
-  })
 
   const getScore = ({data}) => {
     if (data.type === 'attendee') {
-      return attendeeScores[data.index];
+      return score.attendee[data.index];
     }
     if (data.type === 'placement') {
-      return placementScores[data.index];
+      return score.musician[data.index];
     }
   }
 
   function getColor({type, index, color}) {
     if (type === 'placement') {
-      const score = placementScores[index];
-      if (score < 0) {
+      const s = score.attendee[index];
+      if (s === undefined) {
+        return '#dcdcdc';
+      }
+      if (s < 0) {
         return '#af1f28';
       }
-      if (score > 0) {
+      if (s > 0) {
         return '#2db672';
       }
       return '#ccc';
@@ -168,8 +73,6 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
   }
 
   return {
-    scores,
-    isVisible,
     frameProps: {
       xExtent: [0, maxD],
       yExtent: [0, maxD],
@@ -241,13 +144,32 @@ const getFrameProps = ({problem = defaultProblem, solution = defaultSolution}) =
 function App() {
   const [problem, setProblem] = useState();
   const [solution, setSolution] = useState();
+  const [problemId, setProblemId] = useState(1);
+  const [score, setScore] = useState(defaultScore);
 
   const onChange = (e) => {
     const value = e.target.value;
     setProblem(require(`./data/problem-${value}.json`))
     setSolution(require(`./solutions/problem-${value}.json`))
+    setProblemId(value);
   }
-  const {scores, isVisible, frameProps} = getFrameProps({problem, solution});
+  const {frameProps} = getFrameProps({problem, solution, score});
+  useEffect(() => {
+    fetch(`/api/solution/${problemId}/score`, {
+      method: 'POST',
+      headers: {
+        'Content-type': 'text/plain',
+      },
+      body: JSON.stringify(solution),
+    }).then(async response => {
+      if (!response.ok) {
+        console.error(response.status);
+        return;
+      }
+      let res = await response.json();
+      setScore(res);
+    });
+  }, [problemId]);
 
   return (
     <>
@@ -255,21 +177,20 @@ function App() {
         <div className="App-selector">
           <ProblemSelector N={N} onChange={onChange} />
         </div>
-        <XYFrame {...frameProps} className="App-xyframe"/>
+        {problemId && problem && solution && (<XYFrame {...frameProps} className="App-xyframe"/>)}
         {/* {isVisible.map((s, idx) => {
           const score = s.reduce((p, c) => p + (c ? "1" : "0"), "");
           return (
             <div key={idx}>{score}</div>
           )
         })} */}
-        {scores.map((s, idx) => {
-          const score = s.reduce((p, c) => p + c, 0.0);
+        {score && score.attendee.map((s, idx) => {
           return (
-            <div key={idx}>Attendee {idx + 1}: {score}</div>
+            <div key={idx}>Attendee {idx + 1}: {s}</div>
           )
         })}
       </div>
-      <div>Total: {scores.reduce((p, c) => p + c.reduce((prev, cur) => prev + cur, 0), 0)}</div>
+      <div>Total: {score.score}</div>
     </>
   );
 }
