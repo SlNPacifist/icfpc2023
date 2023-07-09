@@ -3,7 +3,7 @@ use crate::{read_task, write_optimal_solution, get_optimal_solution};
 use rouille;
 
 pub fn start_server() {
-    rouille::start_server("localhost:8000", move |request| {
+    rouille::start_server("0.0.0.0:8000", move |request| {
         router!(request,
             (POST) (/api/solution/{id: usize}/update) => {
                 let text = rouille::input::plain_text_body_with_limit(request, 1000000000).expect("input expected");
