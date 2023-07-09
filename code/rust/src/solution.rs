@@ -2,6 +2,7 @@ use crate::geom::Point;
 use crate::io::{Solution, Task, MUSICIAN_RADIUS};
 use crate::optimizer::optimize_placements_greedy;
 use crate::score;
+use crate::score::Visibility;
 
 pub fn dummy(task: &Task) -> Solution {
     let mut res = Solution::default();
@@ -137,4 +138,30 @@ pub fn multi_dummy_solver(task: &Task) -> Solution {
             score::calc(&task, &solution, &visibility).unwrap_or(0)
         })
         .expect("No solutions found")
+}
+
+const MIN_VOLUME: f64 = 0.0;
+const MAX_VOLUME: f64 = 10.0;
+
+pub fn recalc_volumes(task: &Task, solution: &mut Solution, visibility: &Visibility) {
+    solution.volumes = solution.placements.iter().enumerate()
+        .map(|(mus_idx, mus_pos)| {
+            let attendee_sum: i64 = task.attendees.iter().enumerate()
+                .filter(|(att_idx, _)| visibility.is_visible(*att_idx, mus_idx))
+                .map(|(_, att)| {
+                    score::attendee_score_without_q(
+                        att,
+                        task.musicians[mus_idx],
+                        *mus_pos,
+                    )
+                })
+                .sum();
+
+            if attendee_sum > 0 {
+                MAX_VOLUME
+            } else {
+                MIN_VOLUME
+            }
+        })
+        .collect();
 }

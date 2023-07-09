@@ -144,16 +144,18 @@ pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result
                             solution.placements[index],
                         );
 
+                        // Volumes should be allowed even on lightning tasks
+                        let mut score = (score as f64) * solution.volumes[index];
+
                         // Aymeric Fromherz — Вчера, в 23:01
                         // ...you can also see it as active if and only if pillars is not empty in the problem description.
-
                         if !task.pillars.is_empty() {
                             // Aymeric Fromherz — Вчера, в 18:55
                             // It is implemented as calling ceil when computing I_i(k), and ceil again after multiplying with q(k), as indicated in the spec.
-                            score = ((score as f64) * musician2q[index]).ceil() as i64;
+                            score *= musician2q[index];
                         }
 
-                        score
+                        score.ceil() as i64
                     })
                     .sum::<i64>()
             })

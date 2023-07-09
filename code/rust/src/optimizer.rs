@@ -12,6 +12,7 @@ use itertools::Itertools;
 use rand::SeedableRng;
 use rand::distributions::{Distribution, Uniform};
 use rand_xoshiro::Xoshiro256PlusPlus;
+use crate::solution::recalc_volumes;
 
 static OPTIMIZERS: [(
     fn(&Task, &Solution, &Visibility) -> (Solution, Visibility),
@@ -318,7 +319,8 @@ pub fn optimize_do_talogo(
                     }
                 };
 
-                let (solution, visibility) = optimize(&task, &try_solution, &try_visibility);
+                let (mut solution, visibility) = optimize(&task, &try_solution, &try_visibility);
+                recalc_volumes(task, &mut solution, &visibility);
 
                 try_solution = solution;
                 try_visibility = visibility;

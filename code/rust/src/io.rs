@@ -142,12 +142,25 @@ impl Task {
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Solution {
     pub placements: Vec<Point>,
+    #[serde(default = "default_volumes")]
+    pub volumes: Vec<f64>,
+}
+
+const MAX_MUSICIANS: usize = 10_000;
+
+fn default_volumes() -> Vec<f64> {
+    vec![1.0; 10000]
+}
+
+pub fn default_volumes_task(task: &Task) -> Vec<f64> {
+    vec![1.0; task.musicians.len()]
 }
 
 impl Solution {
     pub fn transpose(self) -> Self {
         Self {
             placements: self.placements.into_iter().map(|c| c.transpose()).collect(),
+            volumes: self.volumes,
         }
     }
 }

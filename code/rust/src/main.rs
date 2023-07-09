@@ -2,11 +2,12 @@
 extern crate rouille;
 
 use crate::score::potential_score;
-use crate::solution::dummy;
+use crate::solution::{dummy, recalc_volumes};
 use clap::{self, arg, value_parser};
 use io::{Solution, Task};
 use num_format::{Locale, ToFormattedString};
 use optimizer::optimize_do_talogo;
+use crate::io::default_volumes_task;
 
 mod genetics;
 mod geom;
@@ -214,8 +215,12 @@ fn main() {
                     serde_json::from_str(&data).expect("Could not parse data")
                 };
 
-                let solution = Solution { placements: output };
+                let mut solution = Solution {
+                    placements: output,
+                    volumes: default_volumes_task(&task),
+                };
                 let visibility = score::calc_visibility_fast(&task, &solution);
+                recalc_volumes(&task, &mut solution, &visibility);
                 match score::calc(&task, &solution, &visibility) {
                     Ok(points) => {
                         println!("ortools solution for task {i} got {points} points");

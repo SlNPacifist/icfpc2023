@@ -1,7 +1,8 @@
 use crate::geom::Point;
-use crate::io::{Solution, Task};
+use crate::io::{default_volumes_task, Solution, Task};
 use crate::score::{calc, calc_visibility, Visibility};
 use genevo::{operator::prelude::*, population::*, prelude::*};
+use crate::solution::recalc_volumes;
 
 type Genome = Vec<f64>;
 
@@ -39,6 +40,7 @@ fn genome_from_solution(task: &Task, solution: &Solution) -> Genome {
 fn genome_to_solution(task: &Task, genome: &Genome) -> Solution {
     Solution {
         placements: genome.chunks(2).map(|c| to_stage_pos(task, c)).collect(),
+        volumes: default_volumes_task(&task),
     }
 }
 
@@ -47,8 +49,9 @@ const MIN_SCORE: i64 = -1_000_000_000_000;
 /// The genotype is Solution
 impl<'a> FitnessFunction<Genome, i64> for &'a Task {
     fn fitness_of(&self, genome: &Genome) -> i64 {
-        let solution = genome_to_solution(self, genome);
+        let mut solution = genome_to_solution(self, genome);
         let visibility = calc_visibility(self, &solution);
+        recalc_volumes(self, &mut solution, &visibility);
 
         match calc(self, &solution, &visibility) {
             Ok(val) => val,
@@ -126,8 +129,9 @@ pub fn optimize_placements(
                 //     best_solution.generation,
                 //     processing_time.fmt(),
                 // );
-                let solution = genome_to_solution(task, &best_solution.solution.genome);
+                let mut solution = genome_to_solution(task, &best_solution.solution.genome);
                 let visibility = calc_visibility(task, &solution);
+                recalc_volumes(task, &mut solution, &visibility);
                 return (solution, visibility);
             }
             Err(error) => {
