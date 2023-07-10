@@ -1468,7 +1468,7 @@ mod rap {
                     );
                     // todo proper mag
                     let force = force * (1.0 / 1e9);
-                    dbg!((body_point(&body), force));
+                    // dbg!((body_point(&body), force));
 
                     body.add_force(
                         vector![force.x as f32, force.y as f32],
