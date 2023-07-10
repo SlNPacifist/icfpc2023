@@ -32,8 +32,10 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
         });
 
         if let Some((pos, min_dist_coord)) = min_pos {
-            if min_dist_coord.dist_sqr(*c) < musician_radius_sqr {
-                bail!("Musician {i} is too close to musician {pos}")
+            let dist_sqr = min_dist_coord.dist_sqr(*c);
+            if dist_sqr < musician_radius_sqr {
+                let dist = dist_sqr.sqrt();
+                bail!("Musician {i} is too close to musician {pos}. Left pos {:?}, right pos {:?}, dist {dist}", solution.placements[i], solution.placements[pos], )
             }
         }
 
@@ -127,6 +129,52 @@ pub fn calc_musician2q(task: &Task, solution: &Solution) -> Vec<f64> {
         }
     }
     result
+}
+
+// false in mask means position is still empty
+pub fn masked_score_calc(
+    task: &Task,
+    solution: &Solution,
+    visibility: &Visibility,
+    mask: &Vec<bool>,
+) -> Result<i64> {
+    let musician2q = calc_musician2q(task, solution);
+
+    validate(task, solution).map(|_| {
+        task.attendees
+            .par_iter()
+            .enumerate()
+            .map(|(attendee_index, a)| {
+                visibility
+                    .for_attendee(attendee_index)
+                    .map(|index| {
+                        if !mask[index] {
+                            return 0;
+                        }
+
+                        let score = attendee_score_without_q(
+                            a,
+                            task.musicians[index],
+                            solution.placements[index],
+                        );
+
+                        // Volumes should be allowed even on lightning tasks
+                        let mut score = (score as f64) * solution.volumes[index];
+
+                        // Aymeric Fromherz — Вчера, в 23:01
+                        // ...you can also see it as active if and only if pillars is not empty in the problem description.
+                        if !task.pillars.is_empty() {
+                            // Aymeric Fromherz — Вчера, в 18:55
+                            // It is implemented as calling ceil when computing I_i(k), and ceil again after multiplying with q(k), as indicated in the spec.
+                            score *= musician2q[index];
+                        }
+
+                        score.ceil() as i64
+                    })
+                    .sum::<i64>()
+            })
+            .sum()
+    })
 }
 
 pub fn calc(task: &Task, solution: &Solution, visibility: &Visibility) -> Result<i64> {

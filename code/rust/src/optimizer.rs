@@ -22,6 +22,8 @@ type OptimizerSlice = [(Optimizer, &'static str)];
 
 const ALL_OPTIMIZERS: &OptimizerSlice = &[
     (rap::rapier_optimizer, "Rigid body based"),
+    // (rap::silent_musicians_together_rapier_optimizer, "Silent musicians together tigid body based"),
+    (rap::spread_musicians_rapier_optimizer, "Spread musicians tigid body based"),
     (default_force_based_optimizer, "Force based"),
     (big_step_force_based_optimizer, "Force based with big steps"),
     (big_gap_force_based_optimizer, "Force based with big gaps"),
@@ -54,6 +56,8 @@ const ALL_OPTIMIZERS: &OptimizerSlice = &[
 
 const SAFE_OPTIMIZERS: &OptimizerSlice = &[
     (rap::rapier_optimizer, "Rigid body based"),
+    // (rap::silent_musicians_together_rapier_optimizer, "Silent musicians together tigid body based"),
+    (rap::spread_musicians_rapier_optimizer, "Spread musicians tigid body based"),
     (default_force_based_optimizer, "Force based"),
     (big_step_force_based_optimizer, "Force based with big steps"),
     (big_gap_force_based_optimizer, "Force based with big gaps"),
@@ -84,6 +88,8 @@ const SAFE_OPTIMIZERS: &OptimizerSlice = &[
 
 const FINAL_OPTIMIZERS: &OptimizerSlice = &[
     (rap::rapier_optimizer, "Rigid body based"),
+    // (rap::silent_musicians_together_rapier_optimizer, "Silent musicians together tigid body based"),
+    (rap::spread_musicians_rapier_optimizer, "Spread musicians tigid body based"),
     // (force_random_walk_optimizer, "Force based random walk"),
     (
         silent_musicians_together_force_based_optimizer,
@@ -101,6 +107,10 @@ const FINAL_OPTIMIZERS: &OptimizerSlice = &[
     //     zeros_away_from_audience_optimizer,
     //     "Wrong taste away from audience",
     // ),
+    (optimize_placements_greedy_opt, "Greedy placement"),
+];
+
+const GREEDY_OPTIMIZER: &OptimizerSlice = &[
     (optimize_placements_greedy_opt, "Greedy placement"),
 ];
 
@@ -138,7 +148,7 @@ pub fn optimize_placements_greedy(
     let mut musician_by_instrument = task.musician_by_instrument();
     let mut res = solution.clone();
 
-    while let Some((_, instrument, pos_index)) = moves.pop() {
+    while let Some((action_score, instrument, pos_index)) = moves.pop() {
         if position_is_picked[pos_index] || musician_by_instrument[instrument].is_empty() {
             continue;
         }
@@ -149,6 +159,18 @@ pub fn optimize_placements_greedy(
 
         res.placements[musician_id] = solution.placements[pos_index];
         position_is_picked[pos_index] = true;
+
+        // Only tasks with pillars can use q-factor
+        if false && task.pillars.len() > 0 {
+            // TODO incomplete - uses score for whole solution, not for single action
+            let score_after = score::masked_score_calc(task, &res, visibility, &position_is_picked)
+                .unwrap_or(-1_000_000_000i64);
+            if action_score != score_after {
+                position_is_picked[pos_index] = false;
+                musician_by_instrument[instrument].push(musician_id);
+                moves.push((score_after, instrument, pos_index));
+            }
+        }
     }
     let visibility = calc_visibility(task, &res);
     (res, visibility)
@@ -1311,6 +1333,17 @@ pub fn optimize_do_talogo(
                     try_visibility = visibility;
                 }
 
+                {
+                    // always run greedy one time in the end
+                    try_solution.volumes = default_volumes_task(task);
+                    let (mut solution, visibility) =
+                        optimize_placements_greedy(&task, &try_solution, &try_visibility);
+                    recalc_volumes(task, &mut solution, &visibility);
+
+                    try_solution = solution;
+                    try_visibility = visibility;
+                }
+
                 match score::calc(&task, &try_solution, &try_visibility) {
                     Ok(points) => {
                         println!(
@@ -1344,18 +1377,143 @@ mod rap {
     use rapier2d::prelude::*;
 
     use crate::io::{Solution, Task, MUSICIAN_RADIUS};
+    use crate::optimizer::attract_musicians_to_attendees_force_collector;
     use crate::score::{calc_visibility, calc_visibility_fast, Visibility};
+    use crate::solution::recalc_volumes;
 
-    const MUSICIAN_RESTITUTION: f32 = 0.7;
-    const MUSICIAN_BALL_RADIUS: f32 = (MUSICIAN_RADIUS / 2.0) as f32;
-    const STEPS: usize = 200;
+    // const MUSICIAN_RESTITUTION: f32 = 0.7;
+    const MUSICIAN_RESTITUTION: f32 = 0.1;
+    const MAX_PENETRATION: f32 = 1e-4;
+    const MUSICIAN_BALL_RADIUS: f32 = (MUSICIAN_RADIUS / 2.0) as f32 + 4.0 * MAX_PENETRATION;
+    const STEPS: usize = 1000;
     const REFRESH_VISIBILITY_RATE: usize = 10;
+    const RECALC_FORCES_RATE: usize = 10;
+    const FORCE_MULTPLIER: f64 = 10.0;
 
     pub fn rapier_optimizer(
         task: &Task,
         solution: &Solution,
         visibility: &Visibility,
-        _rng: &mut Xoshiro256PlusPlus,
+        rng: &mut Xoshiro256PlusPlus,
+    ) -> (Solution, Visibility) {
+        let force_collector =
+            |task: &Task,
+             start_solution: &Solution,
+             visibility: &Visibility,
+             pos_index: usize,
+             old_position: crate::geom::Point,
+             _rng: &mut Xoshiro256PlusPlus| {
+                attract_musicians_to_attendees_force_collector(
+                    task,
+                    visibility,
+                    pos_index,
+                    old_position,
+                )
+            };
+
+        rapier_optimizer_base(
+            task,
+            solution,
+            visibility,
+            rng,
+            force_collector,
+        )
+    }
+
+    pub fn silent_musicians_together_rapier_optimizer(
+        task: &Task,
+        solution: &Solution,
+        visibility: &Visibility,
+        rng: &mut Xoshiro256PlusPlus,
+    ) -> (Solution, Visibility) {
+        if task.pillars.len() == 0 {
+            // q is not used in score
+            return (solution.clone(), visibility.clone());
+        }
+
+        let mut solution_with_volume = solution.clone();
+        recalc_volumes(task, &mut solution_with_volume, visibility);
+
+        let only_silent = true;
+
+        // silent same instrument - together
+        let force_collector = |task: &Task,
+                               start_solution: &Solution,
+                               visibility: &Visibility,
+                               pos_index: usize,
+                               old_position: crate::geom::Point,
+                               rng: &mut Xoshiro256PlusPlus| {
+            if only_silent && start_solution.volumes[pos_index] > 0.0 {
+                return crate::geom::Vector { x: 0.0, y: 0.0 };
+            }
+            task.musicians
+                .iter()
+                .zip(start_solution.placements.iter())
+                .enumerate()
+                .filter(|(other_mus_idx, _)| *other_mus_idx != pos_index)
+                .filter(|(other_mus_idx, _)| start_solution.volumes[*other_mus_idx] > 0.0)
+                .filter(|(_, (other_instr, _))| **other_instr == task.musicians[pos_index])
+                .map(|(other_mus_idx, (_, other_pos))| {
+                    let v = *other_pos - old_position;
+                    v * (1.0 / v.norm())
+                })
+                .sum()
+        };
+
+        rapier_optimizer_base(
+            task,
+            &solution_with_volume,
+            visibility,
+            rng,
+            force_collector,
+        )
+    }
+
+    pub fn spread_musicians_rapier_optimizer(
+        task: &Task,
+        solution: &Solution,
+        visibility: &Visibility,
+        rng: &mut Xoshiro256PlusPlus,
+    ) -> (Solution, Visibility) {
+        // silent same instrument - together
+        let force_collector = |task: &Task,
+                               start_solution: &Solution,
+                               visibility: &Visibility,
+                               pos_index: usize,
+                               old_position: crate::geom::Point,
+                               rng: &mut Xoshiro256PlusPlus| {
+            start_solution.placements.iter()
+                .enumerate()
+                .filter(|(other_mus_idx, _)| *other_mus_idx != pos_index)
+                .map(|(other_mus_idx, other_pos)| {
+                    let v = old_position - *other_pos;
+                    v * (1.0 / v.norm2())
+                })
+                .sum()
+        };
+
+        rapier_optimizer_base(
+            task,
+            solution,
+            visibility,
+            rng,
+            force_collector,
+        )
+    }
+
+    pub fn rapier_optimizer_base(
+        task: &Task,
+        solution: &Solution,
+        visibility: &Visibility,
+        rng: &mut Xoshiro256PlusPlus,
+        mut force_collector: impl FnMut(
+            &Task,
+            &Solution,
+            &Visibility,
+            usize,
+            crate::geom::Point,
+            &mut Xoshiro256PlusPlus,
+        ) -> crate::geom::Vector,
     ) -> (Solution, Visibility) {
         let mut rigid_body_set = RigidBodySet::new();
         let mut collider_set = ColliderSet::new();
@@ -1410,7 +1568,11 @@ mod rap {
 
         /* Create other structures necessary for the simulation. */
         let gravity = vector![0.0, 0.0];
-        let integration_parameters = IntegrationParameters::default();
+        let integration_parameters = IntegrationParameters {
+            allowed_linear_error: MAX_PENETRATION,
+            // max_stabilization_iterations: 10,
+            ..IntegrationParameters::default()
+        };
         let mut physics_pipeline = PhysicsPipeline::new();
         let mut island_manager = IslandManager::new();
         let mut broad_phase = BroadPhase::new();
@@ -1454,27 +1616,45 @@ mod rap {
 
         /* Run the game loop, stepping the simulation once per frame. */
         for step in 0..STEPS {
-            musician_body_handles
-                .iter()
-                .enumerate()
-                .for_each(|(pos_idx, body_handle)| {
-                    let body = &mut rigid_body_set[*body_handle];
-                    body.reset_forces(true);
-                    let force = super::attract_musicians_to_attendees_force_collector(
-                        task,
-                        &visibility,
-                        pos_idx,
-                        body_point(&body),
-                    );
-                    // todo proper mag
-                    let force = force * (1.0 / 1e9);
-                    // dbg!((body_point(&body), force));
+            if step % RECALC_FORCES_RATE == 0 {
+                let mut forces = result
+                    .placements
+                    .iter()
+                    .enumerate()
+                    .map(|(pos_index, old_position)| {
+                        (
+                            pos_index,
+                            force_collector(
+                                task,
+                                &result,
+                                &visibility,
+                                pos_index,
+                                *old_position,
+                                rng,
+                            ),
+                        )
+                    })
+                    .collect::<Vec<_>>();
 
-                    body.add_force(
-                        vector![force.x as f32, force.y as f32],
-                        false, /*already woken up*/
-                    );
-                });
+                let max_norm = forces
+                    .iter()
+                    .map(|(_, f)| f.norm())
+                    .max_by(|a, b| a.partial_cmp(b).unwrap())
+                    .unwrap();
+
+                forces
+                    .into_iter()
+                    .map(|(i, f)| (i, f * (1.0 / max_norm * FORCE_MULTPLIER)))
+                    .for_each(|(pos_index, force)| {
+                        let body_handle = musician_body_handles[pos_index];
+                        let body = &mut rigid_body_set[body_handle];
+                        body.reset_forces(true);
+                        body.add_force(
+                            vector![force.x as f32, force.y as f32],
+                            false, /*already woken up*/
+                        );
+                    });
+            }
 
             physics_pipeline.step(
                 &gravity,
@@ -1493,9 +1673,35 @@ mod rap {
             );
 
             if (step + 1) % REFRESH_VISIBILITY_RATE == 0 {
-                let result = collect_solution(&rigid_body_set, &musician_body_handles, solution);
+                result = collect_solution(&rigid_body_set, &musician_body_handles, solution);
                 // visibility = calc_visibility_fast(&task, &result);
                 visibility = calc_visibility(&task, &result);
+            }
+        }
+
+        {
+            for body_handle in musician_body_handles.iter() {
+                let body = &mut rigid_body_set[*body_handle];
+                body.reset_forces(true);
+            }
+
+            const STABILIZE_STEPS: usize = 100;
+            for step in 0..STABILIZE_STEPS {
+                physics_pipeline.step(
+                    &gravity,
+                    &integration_parameters,
+                    &mut island_manager,
+                    &mut broad_phase,
+                    &mut narrow_phase,
+                    &mut rigid_body_set,
+                    &mut collider_set,
+                    &mut impulse_joint_set,
+                    &mut multibody_joint_set,
+                    &mut ccd_solver,
+                    None,
+                    &physics_hooks,
+                    &event_handler,
+                );
             }
         }
 
