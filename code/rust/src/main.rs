@@ -2,13 +2,13 @@
 extern crate rouille;
 
 use crate::io::default_volumes_task;
+use crate::optimizer::one_by_one_do_talogo;
 use crate::score::potential_score;
 use crate::solution::{dummy, recalc_volumes};
 use clap::{self, arg, value_parser};
 use io::{Solution, Task};
 use num_format::{Locale, ToFormattedString};
 use optimizer::optimize_do_talogo;
-use crate::optimizer::one_by_one_do_talogo;
 
 mod genetics;
 mod geom;
@@ -91,7 +91,6 @@ pub fn write_manual_solution(solution: &Solution, i: usize) {
     );
 }
 
-
 fn get_spread_solution(task: &Task) -> Solution {
     [5.0, 3.0, 2.0, 1.5, 1.1, 1.05, 1.01, 1.005, 1.001, 1.0]
         .into_iter()
@@ -122,8 +121,7 @@ fn main() {
         .subcommand(clap::command!("potential"))
         .subcommand(clap::command!("server"))
         .subcommand(
-            clap::command!("make-ortools-input")
-                .arg(arg!([id]).value_parser(value_parser!(usize))),
+            clap::command!("make-ortools-input").arg(arg!([id]).value_parser(value_parser!(usize))),
         )
         .subcommand(
             clap::command!("apply-ortools-output")
@@ -181,7 +179,7 @@ fn main() {
                         let one_by_one = false;
 
                         let (best_solution, visibility) = if one_by_one {
-                             one_by_one_do_talogo(&task, &base_solution, &visibility)
+                            one_by_one_do_talogo(&task, &base_solution, &visibility)
                         } else {
                             optimize_do_talogo(&task, &base_solution, visibility)
                         };
@@ -234,7 +232,11 @@ fn main() {
                                     inst,
                                     solution.placements[pos_idx],
                                 );
-                                let s = if use_volume { (s as f64 * solution.volumes[inst_idx]).ceil() as i64 } else { s };
+                                let s = if use_volume {
+                                    (s as f64 * solution.volumes[inst_idx]).ceil() as i64
+                                } else {
+                                    s
+                                };
                                 m[inst_idx][pos_idx] += s;
                             }
                         }

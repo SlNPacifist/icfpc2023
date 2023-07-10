@@ -1,5 +1,5 @@
 use crate::score::{calc_ex, calc_visibility_fast};
-use crate::{read_task, write_optimal_solution, get_manual_solution, write_manual_solution};
+use crate::{get_manual_solution, read_task, write_manual_solution, write_optimal_solution};
 use rouille;
 
 pub fn start_server() {
