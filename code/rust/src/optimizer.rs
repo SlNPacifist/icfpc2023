@@ -18,38 +18,86 @@ type Optimizer = fn(&Task, &Solution, &Visibility, &mut Xoshiro256PlusPlus) -> (
 type OptimizerSlice = [(Optimizer,&'static str)];
 
 const ALL_OPTIMIZERS: &OptimizerSlice = &[
+    (rap::rapier_optimizer, "Rigid body based"),
     (default_force_based_optimizer, "Force based"),
     (big_step_force_based_optimizer, "Force based with big steps"),
     (big_gap_force_based_optimizer, "Force based with big gaps"),
-    (big_gap_big_step_force_based_optimizer, "Force based with big gaps and big steps"),
+    (
+        big_gap_big_step_force_based_optimizer,
+        "Force based with big gaps and big steps",
+    ),
     (force_random_walk_optimizer, "Force based random walk"),
-    (silent_musicians_together_force_based_optimizer, "Force based silent musicians together"),
-    (all_musicians_together_force_based_optimizer, "Force based musicians together"),
-    (musicians_out_of_the_way_force_based_optimizer, "Force based out of the way"),
+    (
+        silent_musicians_together_force_based_optimizer,
+        "Force based silent musicians together",
+    ),
+    (
+        all_musicians_together_force_based_optimizer,
+        "Force based musicians together",
+    ),
+    (
+        musicians_out_of_the_way_force_based_optimizer,
+        "Force based out of the way",
+    ),
+    (
+        zeros_away_from_audience_optimizer,
+        "Wrong taste away from audience",
+    ),
     (optimize_placements_greedy_opt, "Greedy placement"),
     (random_swap_positions, "Random swap positions"),
     (random_change_positions, "Random change positions"),
-    (optimize_border, "Optimize border"),
+    //(optimize_border, "Optimize border"),
 ];
 
 const SAFE_OPTIMIZERS: &OptimizerSlice = &[
+    (rap::rapier_optimizer, "Rigid body based"),
     (default_force_based_optimizer, "Force based"),
     (big_step_force_based_optimizer, "Force based with big steps"),
     (big_gap_force_based_optimizer, "Force based with big gaps"),
-    (big_gap_big_step_force_based_optimizer, "Force based with big gaps and big steps"),
+    (
+        big_gap_big_step_force_based_optimizer,
+        "Force based with big gaps and big steps",
+    ),
     (force_random_walk_optimizer, "Force based random walk"),
-    (silent_musicians_together_force_based_optimizer, "Force based silent musicians together"),
-    (all_musicians_together_force_based_optimizer, "Force based musicians together"),
-    (musicians_out_of_the_way_force_based_optimizer, "Force based out of the way"),
+    (
+        silent_musicians_together_force_based_optimizer,
+        "Force based silent musicians together",
+    ),
+    (
+        all_musicians_together_force_based_optimizer,
+        "Force based musicians together",
+    ),
+    (
+        musicians_out_of_the_way_force_based_optimizer,
+        "Force based out of the way",
+    ),
+    (
+        zeros_away_from_audience_optimizer,
+        "Wrong taste away from audience",
+    ),
     (optimize_placements_greedy_opt, "Greedy placement"),
-    (optimize_border, "Optimize border"),
+    //(optimize_border, "Optimize border"),
 ];
 
 const FINAL_OPTIMIZERS: &OptimizerSlice = &[
-    (force_random_walk_optimizer, "Force based random walk"),
-    (silent_musicians_together_force_based_optimizer, "Force based silent musicians together"),
-    (all_musicians_together_force_based_optimizer, "Force based musicians together"),
-    (musicians_out_of_the_way_force_based_optimizer, "Force based out of the way"),
+    (rap::rapier_optimizer, "Rigid body based"),
+    // (force_random_walk_optimizer, "Force based random walk"),
+    (
+        silent_musicians_together_force_based_optimizer,
+        "Force based silent musicians together",
+    ),
+    // (
+    //     all_musicians_together_force_based_optimizer,
+    //     "Force based musicians together",
+    // ),
+    // (
+    //     musicians_out_of_the_way_force_based_optimizer,
+    //     "Force based out of the way",
+    // ),
+    // (
+    //     zeros_away_from_audience_optimizer,
+    //     "Wrong taste away from audience",
+    // ),
     (optimize_placements_greedy_opt, "Greedy placement"),
 ];
 
@@ -212,6 +260,28 @@ fn run_force_based_step(
     new_positions
 }
 
+pub fn attract_musicians_to_attendees_force_collector(
+    task: &Task,
+    visibility: &Visibility,
+    pos_index: usize,
+    old_position: Point,
+) -> Vector {
+    task.attendees
+        .iter()
+        .enumerate()
+        // todo too slow w/o filter?
+        .filter(|(index, _)| visibility.is_visible(*index, pos_index))
+        .map(|(att_idx, attendee)| {
+            let visible = visibility.is_visible(att_idx, pos_index);
+            let visible_k = if visible { 1.0 } else { 0.1 };
+
+            let instrument = task.musicians[pos_index];
+            let force = attendee_score_without_q(attendee, instrument, old_position) as f64;
+            (attendee.coord() - old_position) * force * visible_k
+        })
+        .sum::<Vector>()
+}
+
 pub fn force_based_optimizer(
     task: &Task,
     initial_solution: &Solution,
@@ -260,31 +330,20 @@ pub fn force_based_optimizer(
 
         // optimizing phase
         {
-            let force_collector = |task: &Task,
-                                   _start_solution: &Solution,
-                                   visibility: &Visibility,
-                                   pos_index: usize,
-                                   old_position: Point,
-                                   rng: &mut Xoshiro256PlusPlus| {
-                task.attendees
-                    .iter()
-                    .enumerate()
-                    // todo too slow w/o filter?
-                    .filter(|(index, _)| visibility.is_visible(*index, pos_index))
-                    .map(|(att_idx, attendee)| {
-                        let visible = visibility.is_visible(att_idx, pos_index);
-                        let visible_k = if visible { 1.0 } else { 0.1 };
-
-                        let instrument = task.musicians[pos_index];
-                        let force = attendee_score_without_q(
-                            attendee,
-                            instrument,
-                            result.placements[pos_index],
-                        ) as f64;
-                        (attendee.coord() - old_position) * force * visible_k
-                    })
-                    .sum::<Vector>()
-            };
+            let force_collector =
+                |task: &Task,
+                 start_solution: &Solution,
+                 visibility: &Visibility,
+                 pos_index: usize,
+                 old_position: Point,
+                 _rng: &mut Xoshiro256PlusPlus| {
+                    attract_musicians_to_attendees_force_collector(
+                        task,
+                        visibility,
+                        pos_index,
+                        old_position,
+                    )
+                };
 
             result = run_force_based_step(
                 task,
@@ -638,6 +697,49 @@ pub fn force_random_walk_optimizer(
             x: angle.cos(),
             y: angle.sin(),
         }
+    };
+
+    single_force_optimizer(
+        task,
+        initial_solution,
+        visibility,
+        ForceParams::default(),
+        force_collector,
+        rng,
+    )
+}
+
+pub fn zeros_away_from_audience_optimizer(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+    rng: &mut Xoshiro256PlusPlus,
+) -> (Solution, Visibility) {
+    let angle_distr = Uniform::from(0.0..std::f64::consts::TAU);
+
+    // musicians with 0 or less taste for _every_ attendee move away from every atendee
+    let force_collector = |_task: &Task,
+                           start_solution: &Solution,
+                           _visibility: &Visibility,
+                           pos_index: usize,
+                           old_position: Point,
+                           rng: &mut Xoshiro256PlusPlus| {
+        if task
+            .attendees
+            .iter()
+            .any(|att| att.tastes[task.musicians[pos_index]] > 0.0)
+        {
+            return Vector { x: 0.0, y: 0.0 };
+        }
+
+        task.attendees
+            .iter()
+            .map(|att| {
+                let v = old_position - att.coord();
+                let v = v * (1.0 / v.norm());
+                v * att.tastes[task.musicians[pos_index]]
+            })
+            .sum()
     };
 
     single_force_optimizer(
@@ -1033,11 +1135,12 @@ pub fn optimize_do_talogo(
         score_changed = false;
 
         const TRIES: usize = 5;
-        let chain_len: usize = rng.gen_range(3..=10);
 
         use rand::prelude::SliceRandom;
 
         let mut run = |optimizers: &OptimizerSlice| {
+            let chain_len: usize = rng.gen_range(1..=optimizers.len());
+
             for _ in 0..TRIES {
                 let mut try_solution = best_solution.clone();
                 let mut try_visibility = best_visibility.clone();
@@ -1084,10 +1187,177 @@ pub fn optimize_do_talogo(
             }
         };
 
-        run(ALL_OPTIMIZERS);
-        run(SAFE_OPTIMIZERS);
+        // run(ALL_OPTIMIZERS);
+        // run(SAFE_OPTIMIZERS);
         run(FINAL_OPTIMIZERS);
     }
 
     (best_solution, best_visibility)
+}
+
+mod rap {
+    use rand_xoshiro::Xoshiro256PlusPlus;
+    use rapier2d::prelude::*;
+
+    use crate::io::{Solution, Task, MUSICIAN_RADIUS};
+    use crate::score::{calc_visibility, calc_visibility_fast, Visibility};
+
+    const MUSICIAN_RESTITUTION: f32 = 0.7;
+    const MUSICIAN_BALL_RADIUS: f32 = (MUSICIAN_RADIUS / 2.0) as f32;
+    const STEPS: usize = 200;
+    const REFRESH_VISIBILITY_RATE: usize = 10;
+
+    pub fn rapier_optimizer(
+        task: &Task,
+        solution: &Solution,
+        visibility: &Visibility,
+        _rng: &mut Xoshiro256PlusPlus,
+    ) -> (Solution, Visibility) {
+        let mut rigid_body_set = RigidBodySet::new();
+        let mut collider_set = ColliderSet::new();
+
+        /* Create the stage box. */
+        {
+            let sw = task.stage_width as f32;
+            let sh = task.stage_height as f32;
+            let sl = task.stage_left() as f32;
+            let sr = task.stage_right() as f32;
+            let sb = task.stage_bottom() as f32;
+            let st = task.stage_top() as f32;
+            let border = (MUSICIAN_RADIUS / 2.0) as f32;
+
+            let collider = ColliderBuilder::cuboid(border / 2.0, sh / 2.0)
+                .translation(vector![sl + border / 2.0, sb + sh / 2.0])
+                .build();
+            collider_set.insert(collider);
+
+            let collider = ColliderBuilder::cuboid(border / 2.0, sh / 2.0)
+                .translation(vector![sr - border / 2.0, sb + sh / 2.0])
+                .build();
+            collider_set.insert(collider);
+
+            let collider = ColliderBuilder::cuboid(sw / 2.0, border / 2.0)
+                .translation(vector![sl + sw / 2.0, sb + border / 2.0])
+                .build();
+            collider_set.insert(collider);
+
+            let collider = ColliderBuilder::cuboid(sw / 2.0, border / 2.0)
+                .translation(vector![sl + sw / 2.0, st - border / 2.0])
+                .build();
+            collider_set.insert(collider);
+        }
+
+        /* Create the musicians balls. */
+        let musician_body_handles = solution
+            .placements
+            .iter()
+            .map(|pos| {
+                let rigid_body = RigidBodyBuilder::dynamic()
+                    .translation(vector![pos.x as f32, pos.y as f32])
+                    .build();
+                let collider = ColliderBuilder::ball(MUSICIAN_BALL_RADIUS)
+                    .restitution(MUSICIAN_RESTITUTION)
+                    .build();
+                let ball_body_handle = rigid_body_set.insert(rigid_body);
+                collider_set.insert_with_parent(collider, ball_body_handle, &mut rigid_body_set);
+                ball_body_handle
+            })
+            .collect::<Vec<_>>();
+
+        /* Create other structures necessary for the simulation. */
+        let gravity = vector![0.0, 0.0];
+        let integration_parameters = IntegrationParameters::default();
+        let mut physics_pipeline = PhysicsPipeline::new();
+        let mut island_manager = IslandManager::new();
+        let mut broad_phase = BroadPhase::new();
+        let mut narrow_phase = NarrowPhase::new();
+        let mut impulse_joint_set = ImpulseJointSet::new();
+        let mut multibody_joint_set = MultibodyJointSet::new();
+        let mut ccd_solver = CCDSolver::new();
+        let physics_hooks = ();
+        let event_handler = ();
+
+        fn body_point(body: &RigidBody) -> crate::geom::Point {
+            crate::geom::Point {
+                x: body.translation().x as f64,
+                y: body.translation().y as f64,
+            }
+        }
+
+        fn collect_solution(
+            rigid_body_set: &RigidBodySet,
+            musician_body_handles: &Vec<RigidBodyHandle>,
+            initial_solution: &Solution,
+        ) -> Solution {
+            Solution {
+                placements: musician_body_handles
+                    .iter()
+                    .enumerate()
+                    .map(|(pos_idx, body_handle)| {
+                        let musician_body = &rigid_body_set[*body_handle];
+                        crate::geom::Point {
+                            x: musician_body.translation().x as f64,
+                            y: musician_body.translation().y as f64,
+                        }
+                    })
+                    .collect(),
+                volumes: initial_solution.volumes.clone(),
+            }
+        };
+
+        let mut visibility = visibility.clone();
+        let mut result = solution.clone();
+
+        /* Run the game loop, stepping the simulation once per frame. */
+        for step in 0..STEPS {
+            musician_body_handles
+                .iter()
+                .enumerate()
+                .for_each(|(pos_idx, body_handle)| {
+                    let body = &mut rigid_body_set[*body_handle];
+                    body.reset_forces(true);
+                    let force = super::attract_musicians_to_attendees_force_collector(
+                        task,
+                        &visibility,
+                        pos_idx,
+                        body_point(&body),
+                    );
+                    // todo proper mag
+                    let force = force * (1.0 / 1e9);
+                    dbg!((body_point(&body), force));
+
+                    body.add_force(
+                        vector![force.x as f32, force.y as f32],
+                        false, /*already woken up*/
+                    );
+                });
+
+            physics_pipeline.step(
+                &gravity,
+                &integration_parameters,
+                &mut island_manager,
+                &mut broad_phase,
+                &mut narrow_phase,
+                &mut rigid_body_set,
+                &mut collider_set,
+                &mut impulse_joint_set,
+                &mut multibody_joint_set,
+                &mut ccd_solver,
+                None,
+                &physics_hooks,
+                &event_handler,
+            );
+
+            if (step + 1) % REFRESH_VISIBILITY_RATE == 0 {
+                let result = collect_solution(&rigid_body_set, &musician_body_handles, solution);
+                // visibility = calc_visibility_fast(&task, &result);
+                visibility = calc_visibility(&task, &result);
+            }
+        }
+
+        let result = collect_solution(&rigid_body_set, &musician_body_handles, solution);
+        // let visibility = calc_visibility_fast(&task, &result);
+        let visibility = calc_visibility(&task, &result);
+        (result, visibility)
+    }
 }

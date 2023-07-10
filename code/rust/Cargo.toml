@@ -19,3 +19,5 @@ float-ord = "0.3.2"
 rouille = "3.6.2"
 rand = "0.8.5"
 rand_xoshiro = "0.6.0"
+
+rapier2d = { version = "0.17.2", features = [ "simd-stable", "parallel" ] }
