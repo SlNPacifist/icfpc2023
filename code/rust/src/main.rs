@@ -8,6 +8,7 @@ use clap::{self, arg, value_parser};
 use io::{Solution, Task};
 use num_format::{Locale, ToFormattedString};
 use optimizer::optimize_do_talogo;
+use crate::optimizer::one_by_one_do_talogo;
 
 mod genetics;
 mod geom;
@@ -177,8 +178,13 @@ fn main() {
                     Ok(points) => {
                         println!("{base_solution_name} solution for task {i} got {points} points");
 
-                        let (best_solution, visibility) =
-                            optimize_do_talogo(&task, &base_solution, visibility);
+                        let one_by_one = false;
+
+                        let (best_solution, visibility) = if one_by_one {
+                             one_by_one_do_talogo(&task, &base_solution, &visibility)
+                        } else {
+                            optimize_do_talogo(&task, &base_solution, visibility)
+                        };
                         match score::calc(&task, &best_solution, &visibility) {
                             Ok(points) => write_optimal_solution(&task, &best_solution, points, i),
                             Err(_) => {

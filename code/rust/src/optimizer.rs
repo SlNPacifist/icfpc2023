@@ -22,7 +22,10 @@ const ALL_OPTIMIZERS: &OptimizerSlice = &[
     (big_step_force_based_optimizer, "Force based with big steps"),
     (big_gap_force_based_optimizer, "Force based with big gaps"),
     (big_gap_big_step_force_based_optimizer, "Force based with big gaps and big steps"),
+    (force_random_walk_optimizer, "Force based random walk"),
     (silent_musicians_together_force_based_optimizer, "Force based silent musicians together"),
+    (all_musicians_together_force_based_optimizer, "Force based musicians together"),
+    (musicians_out_of_the_way_force_based_optimizer, "Force based out of the way"),
     (optimize_placements_greedy_opt, "Greedy placement"),
     (random_swap_positions, "Random swap positions"),
     (random_change_positions, "Random change positions"),
@@ -34,13 +37,19 @@ const SAFE_OPTIMIZERS: &OptimizerSlice = &[
     (big_step_force_based_optimizer, "Force based with big steps"),
     (big_gap_force_based_optimizer, "Force based with big gaps"),
     (big_gap_big_step_force_based_optimizer, "Force based with big gaps and big steps"),
+    (force_random_walk_optimizer, "Force based random walk"),
     (silent_musicians_together_force_based_optimizer, "Force based silent musicians together"),
+    (all_musicians_together_force_based_optimizer, "Force based musicians together"),
+    (musicians_out_of_the_way_force_based_optimizer, "Force based out of the way"),
     (optimize_placements_greedy_opt, "Greedy placement"),
     (optimize_border, "Optimize border"),
 ];
 
 const FINAL_OPTIMIZERS: &OptimizerSlice = &[
+    (force_random_walk_optimizer, "Force based random walk"),
     (silent_musicians_together_force_based_optimizer, "Force based silent musicians together"),
+    (all_musicians_together_force_based_optimizer, "Force based musicians together"),
+    (musicians_out_of_the_way_force_based_optimizer, "Force based out of the way"),
     (optimize_placements_greedy_opt, "Greedy placement"),
 ];
 
@@ -425,18 +434,14 @@ pub fn force_based_optimizer(
     (result, visibility)
 }
 
-pub fn force_silent_musicians_together(
+pub fn single_force_optimizer(
     task: &Task,
     initial_solution: &Solution,
     visibility: &Visibility,
     params: ForceParams,
+    mut force_collector: impl FnMut(&Task, &Solution, &Visibility, usize, Point, &mut Xoshiro256PlusPlus) -> Vector,
     rng: &mut Xoshiro256PlusPlus,
 ) -> (Solution, Visibility) {
-    if task.pillars.len() == 0 {
-        // q is not used in score
-        return (initial_solution.clone(), visibility.clone());
-    }
-
     let mut result = initial_solution.clone();
     recalc_volumes(task, &mut result, &visibility);
 
@@ -446,38 +451,15 @@ pub fn force_silent_musicians_together(
 
     let mut visibility = visibility.clone();
     for step in 0..params.steps {
-        // silent same instrument - together
-        {
-            let force_collector = |task: &Task,
-                                   start_solution: &Solution,
-                                   visibility: &Visibility,
-                                   pos_index: usize,
-                                   old_position: Point,
-                                   rng: &mut Xoshiro256PlusPlus| {
-                if start_solution.volumes[pos_index] > 0.0 {
-                    return Vector {x:0.0, y:0.0};
-                }
-                task.musicians.iter().zip(start_solution.placements.iter()).enumerate()
-                    .filter(|(other_mus_idx, _)| *other_mus_idx != pos_index)
-                    .filter(|(other_mus_idx, _)| start_solution.volumes[*other_mus_idx] > 0.0)
-                    .filter(|(_, (other_instr, _))| **other_instr == task.musicians[pos_index])
-                    .map(|(other_mus_idx, (_, other_pos))| {
-                        let v = *other_pos - old_position;
-                        v * (1.0/v.norm())
-                    })
-                    .sum()
-            };
-
-            result = run_force_based_step(
-                task,
-                &result,
-                &visibility,
-                force_collector,
-                optimizing_force_sched_multiplier,
-                params.force_gap_size,
-                rng,
-            );
-        }
+        result = run_force_based_step(
+            task,
+            &result,
+            &visibility,
+            &mut force_collector,
+            optimizing_force_sched_multiplier,
+            params.force_gap_size,
+            rng,
+        );
 
         random_walk_sched_multiplier *= params.random_walk_decay;
         optimizing_force_sched_multiplier *= params.optimizing_force_decay;
@@ -492,13 +474,180 @@ pub fn force_silent_musicians_together(
     (result, visibility)
 }
 
+pub fn force_musicians_out_of_the_way(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+    params: ForceParams,
+    rng: &mut Xoshiro256PlusPlus,
+) -> (Solution, Visibility) {
+    // moving out of the way from crossing
+    let force_collector = |task: &Task,
+                           start_solution: &Solution,
+                           visibility: &Visibility,
+                           pos_index: usize,
+                           old_position: Point,
+                           rng: &mut Xoshiro256PlusPlus| {
+        const MAX_ATTENDEES: usize = 20;
+        const MAX_SOURCE_MUSICIANS: usize = 20;
+
+        let att_indices = rand::seq::index::sample(rng, task.attendees.len(), task.attendees.len().min(MAX_ATTENDEES));
+        let mus_indices = rand::seq::index::sample(rng, task.musicians.len(), task.musicians.len().min(MAX_SOURCE_MUSICIANS));
+
+        att_indices
+            .into_iter()
+            .map(|att_idx| (att_idx, &task.attendees[att_idx]))
+            .map(|(att_idx, att)| {
+                mus_indices
+                    .iter()
+                    .map(|source_m_idx| (source_m_idx, (&task.musicians[source_m_idx], &start_solution.placements[source_m_idx])))
+                    .filter(|(source_m_idx, _)| !visibility.is_visible(att_idx, *source_m_idx))
+                    .filter(|(_, (instr, _))| {
+                        att.tastes[**instr] > 0.0
+                    })
+                    .filter(|(_, (_, source_pos))| {
+                        let seg_source_att = Segment {
+                            from: **source_pos,
+                            to: att.coord()
+                        };
+                        seg_source_att.dist(old_position) < MUSICIAN_BLOCK_RADIUS
+                    })
+                    .map(|(_, (_, source_pos))| {
+                        let v_source_att = att.coord() - *source_pos;
+                        let a_source_att = v_source_att.atan2();
+                        let v_source_me = old_position - *source_pos;
+                        let a_source_me = v_source_me.atan2();
+                        let a_force = if a_source_att > a_source_me {
+                            a_source_att - std::f64::consts::FRAC_PI_2
+                        } else {
+                            a_source_att + std::f64::consts::FRAC_PI_2
+                        };
+
+                        Vector {
+                            x: a_force.cos(),
+                            y: a_force.sin(),
+                        }
+                    })
+                    .sum()
+            })
+            .sum()
+    };
+
+    single_force_optimizer(
+        task,
+        initial_solution,
+        visibility,
+        params,
+        force_collector,
+        rng,
+    )
+}
+
+pub fn musicians_out_of_the_way_force_based_optimizer(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+    rng: &mut Xoshiro256PlusPlus,
+) -> (Solution, Visibility) {
+    force_musicians_out_of_the_way(task, initial_solution, visibility, Default::default(), rng)
+}
+
+pub fn force_musicians_together(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+    params: ForceParams,
+    rng: &mut Xoshiro256PlusPlus,
+    only_silent: bool,
+) -> (Solution, Visibility) {
+    if task.pillars.len() == 0 {
+        // q is not used in score
+        return (initial_solution.clone(), visibility.clone());
+    }
+
+    let mut solution_with_volume = initial_solution.clone();
+    recalc_volumes(task, &mut solution_with_volume, visibility);
+
+    // silent same instrument - together
+    let force_collector = |task: &Task,
+                           start_solution: &Solution,
+                           visibility: &Visibility,
+                           pos_index: usize,
+                           old_position: Point,
+                           rng: &mut Xoshiro256PlusPlus| {
+        if only_silent && start_solution.volumes[pos_index] > 0.0 {
+            return Vector {x:0.0, y:0.0};
+        }
+        task.musicians.iter().zip(start_solution.placements.iter()).enumerate()
+            .filter(|(other_mus_idx, _)| *other_mus_idx != pos_index)
+            .filter(|(other_mus_idx, _)| start_solution.volumes[*other_mus_idx] > 0.0)
+            .filter(|(_, (other_instr, _))| **other_instr == task.musicians[pos_index])
+            .map(|(other_mus_idx, (_, other_pos))| {
+                let v = *other_pos - old_position;
+                v * (1.0/v.norm())
+            })
+            .sum()
+    };
+
+    single_force_optimizer(
+        task,
+        &solution_with_volume,
+        visibility,
+        params,
+        force_collector,
+        rng,
+    )
+}
+
 pub fn silent_musicians_together_force_based_optimizer(
     task: &Task,
     initial_solution: &Solution,
     visibility: &Visibility,
     rng: &mut Xoshiro256PlusPlus,
 ) -> (Solution, Visibility) {
-    force_silent_musicians_together(task, initial_solution, visibility, Default::default(), rng)
+    force_musicians_together(task, initial_solution, visibility, Default::default(), rng, true)
+}
+
+pub fn all_musicians_together_force_based_optimizer(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+    rng: &mut Xoshiro256PlusPlus,
+) -> (Solution, Visibility) {
+    force_musicians_together(task, initial_solution, visibility, Default::default(), rng, false)
+}
+
+pub fn force_random_walk_optimizer(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+    rng: &mut Xoshiro256PlusPlus,
+) -> (Solution, Visibility) {
+    let angle_distr = Uniform::from(0.0..std::f64::consts::TAU);
+
+    // random_walk
+    let force_collector = |_task: &Task,
+                           _start_solution: &Solution,
+                           _visibility: &Visibility,
+                           _pos_index: usize,
+                           _old_position: Point,
+                           rng: &mut Xoshiro256PlusPlus| {
+        let angle = angle_distr.sample(rng);
+
+        Vector {
+            x: angle.cos(),
+            y: angle.sin(),
+        }
+    };
+
+    single_force_optimizer(
+        task,
+        initial_solution,
+        visibility,
+        ForceParams::default(),
+        force_collector,
+        rng,
+    )
 }
 
 pub fn default_force_based_optimizer(
@@ -638,6 +787,24 @@ pub fn random_swap_positions(
     (solution, visibility)
 }
 
+pub fn random_point_on_stage(task: &Task, rng: &mut impl rand::Rng) -> Point {
+    let x_distr = if task.stage_width > 2.0 * MUSICIAN_RADIUS {
+        Some(Uniform::from(task.stage_bottom_left.0 + MUSICIAN_RADIUS .. task.stage_bottom_left.0+task.stage_width-MUSICIAN_RADIUS))
+    } else {
+        None
+    };
+    let y_distr = if task.stage_height > 2.0 * MUSICIAN_RADIUS {
+        Some(Uniform::from(task.stage_bottom_left.1 + MUSICIAN_RADIUS .. task.stage_bottom_left.1+task.stage_height-MUSICIAN_RADIUS))
+    } else {
+        None
+    };
+
+    Point {
+        x: x_distr.map(|x| x.sample(rng)).unwrap_or(task.stage_bottom_left.0 + MUSICIAN_RADIUS),
+        y: y_distr.map(|y| y.sample(rng)).unwrap_or(task.stage_bottom_left.1 + MUSICIAN_RADIUS),
+    }
+}
+
 pub fn random_change_positions(
     task: &Task,
     initial_solution: &Solution,
@@ -765,6 +932,86 @@ pub fn optimize_border(
         visibility = calc_visibility(task, &solution);
     }
     (solution, visibility)
+}
+
+pub fn one_by_one_do_talogo(
+    task: &Task,
+    initial_solution: &Solution,
+    visibility: &Visibility,
+) -> (Solution, Visibility) {
+    let initial_score = score::calc(&task, &initial_solution, &visibility).map(|s| s.to_string()).unwrap_or("NA".to_string());
+
+    let mut partial_task = task.clone();
+    partial_task.musicians = vec![];
+    let mut partial_solution = initial_solution.clone();
+    partial_solution.placements = vec![];
+    partial_solution.volumes = vec![];
+
+    // TODO common rng
+    // todo fixup for positions in shuffled task
+    let mut rng = rand::thread_rng();
+    let pos_indices = rand::seq::index::sample(&mut rng, task.musicians.len(), task.musicians.len());
+
+    let mut positions_fixup = vec![];
+
+    let chunk_size: usize = if task.musicians.len() > 50 { task.musicians.len()/20 } else { 1 };
+
+    for pos_idxs in &pos_indices.iter().chunks(chunk_size) {
+        for pos_idx in pos_idxs {
+            println!("=== One-by-one: point {}/{}", partial_solution.placements.len() + 1, task.musicians.len());
+
+            partial_task.musicians.push(task.musicians[pos_idx]);
+            let mut pos = initial_solution.placements[pos_idx];
+            // TODO this loop can stuck
+            let mut tries = 0;
+            loop {
+                if is_position_possible(
+                    &partial_solution,
+                    /*next pos idx*/ partial_solution.placements.len(),
+                    pos,
+                    MUSICIAN_RADIUS_SQR
+                ) {
+                    partial_solution.placements.push(pos);
+                    break;
+                }
+                pos = random_point_on_stage(&partial_task, &mut rng);
+                tries += 1;
+                if tries == 1000 {
+                    panic!("Could not find proper place for another point");
+                }
+            }
+            partial_solution.volumes.push(1.0);
+            positions_fixup.push(pos_idx);
+        }
+
+        if partial_solution.placements.len() == 1 {
+            // rest of code works badly with single musician
+            continue;
+        }
+
+        let partial_visibility = calc_visibility_fast(&partial_task, &partial_solution);
+
+        let (new_solution, new_visibility) = optimize_do_talogo(&partial_task, &partial_solution, partial_visibility);
+        partial_solution = new_solution;
+
+        let new_score = score::calc(&partial_task, &partial_solution, &new_visibility).map(|s| s.to_string()).unwrap_or("NA".to_string());
+        println!("=== One-by-one: score {new_score}/{initial_score}");
+    }
+
+    let mut final_placements = vec![Point::default();partial_solution.placements.len()];
+    let mut final_volumes = vec![1.0;partial_solution.placements.len()];
+    for i in 0..partial_solution.placements.len() {
+        final_placements[positions_fixup[i]] = partial_solution.placements[i];
+        final_volumes[positions_fixup[i]] = partial_solution.volumes[i];
+    }
+
+    let final_solution = Solution {
+        placements: final_placements,
+        volumes: final_volumes,
+    };
+
+    let final_visibility = calc_visibility_fast(&task, &final_solution);
+    (final_solution, final_visibility)
 }
 
 pub fn optimize_do_talogo(

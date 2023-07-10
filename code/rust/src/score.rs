@@ -23,16 +23,18 @@ pub fn validate(task: &Task, solution: &Solution) -> Result<()> {
             bail!("Musician is not in stage. x={}, y={}, stage borders are left={}, right={}, bottom={}, top={}", c.x, c.y, task.stage_left(), task.stage_right(), task.stage_bottom(), task.stage_top());
         }
 
-        let (pos, min_dist_coord) = solution.placements.iter().enumerate()
+        let min_pos = solution.placements.iter().enumerate()
         .filter(|(index, _)| {
             i != *index
         })
         .min_by(|(_, &a), (_, &b)| {
             c.dist_sqr(a).partial_cmp(&c.dist_sqr(b)).unwrap()
-        }).unwrap();
+        });
 
-        if min_dist_coord.dist_sqr(*c) < musician_radius_sqr {
-            bail!("Musician {i} is too close to musician {pos}")
+        if let Some((pos, min_dist_coord)) = min_pos {
+            if min_dist_coord.dist_sqr(*c) < musician_radius_sqr {
+                bail!("Musician {i} is too close to musician {pos}")
+            }
         }
 
         Result::Ok(())
@@ -323,6 +325,10 @@ pub fn calc_visibility_fast(task: &Task, solution: &Solution) -> Visibility {
                     if a2 > std::f64::consts::PI {
                         a2 -= std::f64::consts::TAU;
                     }
+
+                    // if a1.is_nan() || a2.is_nan() {
+                    //     dbg!((pos_index, pos, p, r, d, alpha, theta, a1, a2, a2 < a1));
+                    // }
 
                     if a2 < a1 {
                         *crossing_zero_distances.entry(FloatOrd(d)).or_insert(0) += 1;
